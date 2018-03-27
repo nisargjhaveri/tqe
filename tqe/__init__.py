@@ -42,19 +42,19 @@ def setupSubparsers(parser):
 
 def _getModel(model):
     if model == "baseline":
-        from summarizer.tqe import baseline
+        from tqe import baseline
         return baseline
     elif model == "postech":
-        from summarizer.tqe import postech
+        from tqe import postech
         return postech
     elif model == "rnn":
-        from summarizer.tqe import rnn
+        from tqe import rnn
         return rnn
     elif model == "siamese":
-        from summarizer.tqe import siamese
+        from tqe import siamese
         return siamese
     elif model == "shef":
-        from summarizer.tqe import shef
+        from tqe import shef
         return shef
 
 

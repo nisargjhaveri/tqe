@@ -1,8 +1,6 @@
 import os
 import shelve
 
-from . import utils
-
 from keras.layers import Layer, multiply, concatenate, average
 from keras.layers import Input, Embedding, Dense, Reshape
 from keras.layers import RNN, GRU, GRUCell, Bidirectional
@@ -15,6 +13,8 @@ import keras.backend as K
 
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils.generic_utils import CustomObjectScope
+
+from .common import evaluate
 
 from .common import WordIndexTransformer
 from .common import _loadSentences, _loadData, _preprocessSentences
@@ -636,13 +636,13 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         shelf.close()
 
     logger.info("Evaluating on development data of size %d" % len(y_dev))
-    utils.evaluate(model_estimator.predict([
+    evaluate(model_estimator.predict([
         X_dev['src'],
         X_dev['mt']
     ]).reshape((-1,)), y_dev)
 
     logger.info("Evaluating on test data of size %d" % len(y_test))
-    utils.evaluate(model_estimator.predict([
+    evaluate(model_estimator.predict([
         X_test['src'],
         X_test['mt']
     ]).reshape((-1,)), y_test)
@@ -685,8 +685,7 @@ def load_predictor(workspaceDir, saveModel, max_len, **kwargs):
 
         if y_test is not None:
             logger.info("Evaluating on test data of size %d" % len(y_test))
-            utils.evaluate(predicted,
-                           y_test)
+            evaluate(predicted, y_test)
 
         return predicted
 

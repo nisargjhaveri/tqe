@@ -1,8 +1,6 @@
 import os
 import shelve
 
-from . import utils
-
 import numpy as np
 
 from keras.layers import average, concatenate
@@ -11,6 +9,8 @@ from keras.layers import Dense, Flatten
 from keras.layers import Conv1D, MaxPooling1D, Dropout
 from keras.models import Model
 from keras.callbacks import EarlyStopping
+
+from .common import evaluate
 
 from .common import WordIndexTransformer, _loadData
 from .common import _printModelSummary
@@ -336,8 +336,8 @@ def train_model(workspaceDir, modelName,
         key=lambda x: "_".join(map(str, map(len, x)))
     )
     y_dev = dev_batches.align(y_dev)
-    utils.evaluate(model.predict_generator(dev_batches).reshape((-1,)),
-                   y_dev)
+    evaluate(model.predict_generator(dev_batches).reshape((-1,)),
+             y_dev)
 
     logger.info("Evaluating on test data of size %d" % len(y_test))
     test_batches = getBatchGenerator([
@@ -348,8 +348,8 @@ def train_model(workspaceDir, modelName,
         key=lambda x: "_".join(map(str, map(len, x)))
     )
     y_test = test_batches.align(y_test)
-    utils.evaluate(model.predict_generator(test_batches).reshape((-1,)),
-                   y_test)
+    evaluate(model.predict_generator(test_batches).reshape((-1,)),
+             y_test)
 
 
 def train(args):

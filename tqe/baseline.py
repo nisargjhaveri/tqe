@@ -17,8 +17,6 @@ from sklearn.preprocessing import StandardScaler
 # import matplotlib.pyplot as plt
 # from matplotlib import cm
 
-from . import utils
-
 from nltk.parse import CoreNLPParser
 
 from multiprocessing.dummy import Pool
@@ -27,8 +25,9 @@ from sklearn.base import clone
 
 import kenlm
 
-from ..utils.progress import ProgressBar
+from .utils.progress import ProgressBar
 
+from .common import evaluate
 from .common import _loadData
 
 import logging
@@ -376,7 +375,7 @@ def _fitAndEval(svr, params, X_train, y_train, X_dev, y_dev, verbose=False):
     svr.fit(X_train, y_train)
     y_pred = svr.predict(X_dev)
 
-    result = (params, utils.evaluate(y_pred, y_dev, False))
+    result = (params, evaluate(y_pred, y_dev, False))
     if verbose:
         _printResult([result])
 
@@ -449,12 +448,10 @@ def train_model(workspaceDir, modelName, tune=False, maxJobs=-1,
     best_index = np.argmax(values)
 
     logger.info("Evaluating on development data of size %d" % len(y_dev))
-    utils.evaluate(clfs[best_index].predict(X_dev),
-                   y_dev)
+    evaluate(clfs[best_index].predict(X_dev), y_dev)
 
     logger.info("Evaluating on test data of size %d" % len(y_test))
-    utils.evaluate(clfs[best_index].predict(X_test),
-                   y_test)
+    evaluate(clfs[best_index].predict(X_test), y_test)
 
     # plotData(X_train, y_train, svr)
 

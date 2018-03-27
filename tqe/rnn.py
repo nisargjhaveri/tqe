@@ -1,8 +1,6 @@
 import os
 import shelve
 
-from . import utils
-
 from keras.layers import dot, average
 from keras.layers import Input, Embedding, Dense, Activation, Lambda
 from keras.layers import GRU, GRUCell, Bidirectional, RNN
@@ -12,6 +10,8 @@ from keras.callbacks import EarlyStopping
 import keras.backend as K
 
 from keras.utils.generic_utils import CustomObjectScope
+
+from .common import evaluate
 
 from .common import WordIndexTransformer, _loadData, _preprocessSentences
 from .common import _printModelSummary, TimeDistributedSequential
@@ -410,8 +410,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         key=lambda x: "_".join(map(str, map(len, x)))
     )
     y_dev = dev_batches.align(y_dev)
-    utils.evaluate(model.predict_generator(dev_batches).reshape((-1,)),
-                   y_dev)
+    evaluate(model.predict_generator(dev_batches).reshape((-1,)),
+             y_dev)
 
     logger.info("Evaluating on test data of size %d" % len(y_test))
     test_batches = getBatchGenerator([
@@ -421,8 +421,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         key=lambda x: "_".join(map(str, map(len, x)))
     )
     y_test = test_batches.align(y_test)
-    utils.evaluate(model.predict_generator(test_batches).reshape((-1,)),
-                   y_test)
+    evaluate(model.predict_generator(test_batches).reshape((-1,)),
+             y_test)
 
 
 def load_predictor(workspaceDir, saveModel, max_len, num_buckets, **kwargs):
@@ -469,8 +469,7 @@ def load_predictor(workspaceDir, saveModel, max_len, num_buckets, **kwargs):
 
         if y_test is not None:
             logger.info("Evaluating on test data of size %d" % len(y_test))
-            utils.evaluate(predicted,
-                           y_test)
+            evaluate(predicted, y_test)
 
         return predicted
 
