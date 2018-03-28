@@ -38,6 +38,7 @@ def setupSubparsers(parser):
     rnnArgparser(subparsers.add_parser('rnn', **parent))
     siameseArgparser(subparsers.add_parser('siamese', **parent))
     shefArgparser(subparsers.add_parser('shef', **parent))
+    siameseShefArgparser(subparsers.add_parser('siamese-shef', **parent))
 
 
 def _getModel(model):
@@ -56,6 +57,11 @@ def _getModel(model):
     elif model == "shef":
         from tqe import shef
         return shef
+    elif model == "siamese-shef":
+        from tqe import siamese_shef
+        return siamese_shef
+    else:
+        raise RuntimeError("Unknown model name")
 
 
 def run(args):
@@ -267,3 +273,47 @@ def shefArgparser(parser):
                         help='Compute ngram freqs.')
     parser.add_argument('--normalize', action='store_true',
                         help='Weather to normalize features or not.')
+
+
+def siameseShefArgparser(parser):
+        parser.add_argument('-b', '--batch-size', type=int, default=50,
+                            help='Batch size')
+        parser.add_argument('-e', '--epochs', type=int, default=25,
+                            help='Number of epochs to run')
+        parser.add_argument('--ensemble-count', type=int, default=3,
+                            help='Number of models to ensemble')
+
+        parser.add_argument('--max-len', type=int, default=100,
+                            help='Maximum length of the sentences')
+        parser.add_argument('--buckets', type=int, default=4,
+                            help='Number of buckets for padding lenght')
+        parser.add_argument('--source-embeddings', type=str, default=None,
+                            help='fastText model name for target language')
+        parser.add_argument('--target-embeddings', type=str, default=None,
+                            help='fastText model name for target language')
+        parser.add_argument('-v', '--vocab-size', type=int, default=40000,
+                            help='Maximum vocab size')
+        parser.add_argument('-m', '--embedding-size', type=int, default=300,
+                            help='Size of word embeddings')
+
+        parser.add_argument('-n', '--mlp-size', type=int, default=50,
+                            help='Number of hidden units in MLP layers')
+
+        parser.add_argument('--filter-sizes', type=int, nargs='*',
+                            default=[3, 4, 5],
+                            help='Filter sizes')
+        parser.add_argument('--num-filters', type=int, default=200,
+                            help='Number of filters for each sizes')
+        parser.add_argument('--sentence-vector-size', type=int, default=500,
+                            help='Size of sentence vector')
+        parser.add_argument('--cnn-dropout', type=float, default=0,
+                            help='Dropout in CNN encoder')
+
+        parser.add_argument('--feature-file-suffix', type=str, default=None,
+                            help='Suffix for feature files')
+        parser.add_argument('--train-lm', action='store_true',
+                            help='Train language model.')
+        parser.add_argument('--train-ngrams', action='store_true',
+                            help='Compute ngram freqs.')
+        parser.add_argument('--normalize', action='store_true',
+                            help='Weather to normalize features or not.')
