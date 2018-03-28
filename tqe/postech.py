@@ -11,6 +11,8 @@ from keras.models import Model
 from keras.callbacks import ModelCheckpoint
 from keras.callbacks import EarlyStopping
 
+from keras import callbacks as cbks
+
 import keras.backend as K
 
 from keras.utils.generic_utils import CustomObjectScope
@@ -274,6 +276,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
              qualvec_size,
              maxout_size,
              maxout_units,
+             keep_trainable,
              model_inputs=None, verbose=False,
              ):
     src_vocab_size = srcVocabTransformer.vocab_size()
@@ -391,13 +394,14 @@ def getModel(srcVocabTransformer, refVocabTransformer,
     model_estimator = Model(inputs=[src_input, ref_input],
                             outputs=[quality])
 
-    model_estimator.get_layer('src_embedding').trainable = False
-    model_estimator.get_layer('ref_embedding').trainable = False
-    model_estimator.get_layer('encoder').trainable = False
-    model_estimator.get_layer('decoder').trainable = False
-    model_estimator.get_layer('td_attention_state').trainable = False
-    model_estimator.get_layer('td_t_tilda').trainable = False
-    model_estimator.get_layer('td_t_out').trainable = False
+    if not keep_trainable:
+        model_estimator.get_layer('src_embedding').trainable = False
+        model_estimator.get_layer('ref_embedding').trainable = False
+        model_estimator.get_layer('encoder').trainable = False
+        model_estimator.get_layer('decoder').trainable = False
+        model_estimator.get_layer('td_attention_state').trainable = False
+        model_estimator.get_layer('td_t_tilda').trainable = False
+        model_estimator.get_layer('td_t_out').trainable = False
 
     model_estimator.compile(
             optimizer="adadelta",
@@ -520,6 +524,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
     model_multitask, model_predictor, model_estimator = \
         getEnsembledModel(srcVocabTransformer=srcVocabTransformer,
                           refVocabTransformer=refVocabTransformer,
+                          keep_trainable=(training_mode == "stack-prop"),
                           **kwargs)
 
     if predictorModelFile and not pred_train:
@@ -527,8 +532,6 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         model_predictor.load_weights(predictorModelFile)
 
     logger.info("Training")
-    if training_mode not in ["multitask", "two-step"]:
-        raise ValueError("Training mode not recognized")
 
     def reshapeRef(ref):
         return np.array(map(lambda r: r.reshape((-1, 1)), ref))
@@ -542,13 +545,15 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                             filepath=(predictorModelFile + ".{epoch:02d}"),
                             save_weights_only=True)]
 
-        model_predictor.fit([
-                pred_train['src'],
-                pred_train['ref']
-            ], [
-                pred_train['ref'].reshape((len(pred_train['ref']), -1, 1)),
-            ],
-            batch_size=batchSize,
+        model_predictor.fit_generator(getBatchGenerator([
+                    pred_train['src'],
+                    pred_train['ref']
+                ], [
+                    reshapeRef(pred_train['ref'])
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize
+            ),
             epochs=epochs,
             verbose=2,
             callbacks=callbacks
@@ -586,8 +591,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             ],
             verbose=2
         )
-
-    if training_mode == "two-step":
+    elif training_mode == "two-step":
         logger.info("Training predictor")
         model_predictor.fit_generator(getBatchGenerator([
                     X_train['src'],
@@ -640,6 +644,139 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             ],
             verbose=2
         )
+    elif training_mode == "stack-prop":
+        logger.info("Training with stack propogation")
+        # Set parameters
+        models = [model_predictor, model_estimator]
+        train_data = [
+            getBatchGenerator([
+                    X_train['src'],
+                    X_train['mt']
+                ], [
+                    reshapeRef(X_train["ref"]),
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
+            ),
+            getBatchGenerator([
+                    X_train['src'],
+                    X_train['mt']
+                ], [
+                    y_train,
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
+            )
+        ]
+        validation_data = [
+            getBatchGenerator([
+                    X_dev['src'],
+                    X_dev['mt']
+                ], [
+                    reshapeRef(X_dev["ref"]),
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
+            ),
+            getBatchGenerator([
+                    X_dev['src'],
+                    X_dev['mt']
+                ], [
+                    y_train,
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
+            )
+        ]
+        callbacks = [
+            EarlyStopping(monitor="val_pearsonr", patience=2,
+                          mode="max"),
+        ]
+        verbose = 2
+        # Done with setting parameters
+
+        # Assume num_batches in all generator are equal
+        steps_per_epoch = len(train_data[0])
+        do_validation = bool(validation_data)
+
+        # Prepare display labels.
+        out_labels = sum(map(lambda m: m.metrics_names, models), [])
+        callback_metrics = out_labels + ['val_' + n for n in out_labels]
+
+        # prepare callbacks
+        history = cbks.History()
+        _callbacks = [cbks.BaseLogger()]
+        if verbose:
+            _callbacks.append(
+                cbks.ProgbarLogger(
+                    count_mode='steps',))
+        _callbacks += (callbacks or []) + [history]
+        callbacks = cbks.CallbackList(_callbacks)
+
+        callback_model = model_estimator
+        callbacks.set_model(callback_model)
+        callbacks.set_params({
+            'epochs': epochs,
+            'steps': steps_per_epoch,
+            'verbose': verbose,
+            'do_validation': do_validation,
+            'metrics': callback_metrics,
+        })
+        callbacks.on_train_begin()
+
+        # Prepare for training
+        callback_model.stop_training = False
+        epoch_logs = {}
+
+        # Start training
+        for epoch in range(0, epochs):
+            callbacks.on_epoch_begin(epoch)
+            for batch_index in range(0, steps_per_epoch):
+                # build batch logs
+                batch_logs = {}
+                batch_logs['batch'] = batch_index
+                batch_logs['size'] = 0
+                callbacks.on_batch_begin(batch_index, batch_logs)
+
+                outs = []
+                for i, model in enumerate(models):
+                    x, y = train_data[i][batch_index]
+                    model_outs = model.train_on_batch(x, y)
+
+                    if not isinstance(model_outs, list):
+                        model_outs = [model_outs]
+
+                    outs.extend(model_outs)
+
+                for l, o in zip(out_labels, outs):
+                    batch_logs[l] = o
+
+                callbacks.on_batch_end(batch_index, batch_logs)
+
+                if callback_model.stop_training:
+                    break
+
+            if do_validation:
+                val_outs = []
+                for i, model in enumerate(models):
+                    outs = model.evaluate_generator(validation_data[i])
+
+                    if not isinstance(outs, list):
+                        outs = [outs]
+
+                    val_outs.extend(outs)
+
+                for l, o in zip(out_labels, val_outs):
+                    epoch_logs['val_' + l] = o
+
+            callbacks.on_epoch_end(epoch, epoch_logs)
+
+            if callback_model.stop_training:
+                break
+
+        callbacks.on_train_end()
+    else:
+        raise ValueError("Training mode not recognized")
 
     # logger.info("Saving model")
     # model.save(fileBasename + "neural.model.h5")
@@ -743,6 +880,8 @@ def load_predictor(workspaceDir, saveModel, max_len, num_buckets, **kwargs):
 def _get_training_mode(args):
     if args.two_step:
         return "two-step"
+    elif args.stack_prop:
+        return "stack-prop"
     else:
         return "multitask"
 

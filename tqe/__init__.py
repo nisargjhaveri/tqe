@@ -143,6 +143,7 @@ def postechArgparser(parser):
                         help='Number of buckets for padding lenght')
     parser.add_argument('-m', '--embedding-size', type=int, default=300,
                         help='Size of word embeddings')
+
     parser.add_argument('-n', '--gru-size', type=int, default=500,
                         help='Size of GRU')
     parser.add_argument('-q', '--qualvec-size', type=int, default=500,
@@ -153,12 +154,16 @@ def postechArgparser(parser):
                         help='Maximum vocab size')
     parser.add_argument('--maxout-units', type=int, default=2,
                         help='Number of maxout units')
+
+    parser.add_argument('--predictor-data', type=str, default=None,
+                        help='Identifier for data to pre-train predictor with')
     parser.add_argument('--predictor-model', type=str, default=None,
                         help='Name of predictor model to save/load from')
+
     parser.add_argument('--two-step', action="store_true",
                         help='Use two step training instead of multitask')
-    parser.add_argument('--predictor-data', type=str, default=None,
-                        help='Identifier for prepared data to train predictor')
+    parser.add_argument('--stack-prop', action="store_true",
+                        help='Use stack propogation instead of multitask')
 
 
 def rnnArgparser(parser):
