@@ -682,7 +682,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                     X_dev['src'],
                     X_dev['mt']
                 ], [
-                    y_train,
+                    y_dev,
                 ],
                 key=lambda x: "_".join(map(str, map(len, x))),
                 batch_size=batchSize,
