@@ -70,7 +70,10 @@ def _preprocessSentences(sentences, lower=True, tokenize=True):
             sentence = sentence.lower()
 
         if tokenize:
-            sentence = np.array(sentence.split(), dtype=object)
+            if callable(tokenize):
+                sentence = np.array(tokenize(sentence), dtype=object)
+            else:
+                sentence = np.array(sentence.split(), dtype=object)
 
         return sentence
 
@@ -257,6 +260,7 @@ def getBatchGenerator(*args, **kwargs):
 def _prepareInput(workspaceDir, modelName,
                   srcVocabTransformer, refVocabTransformer,
                   max_len, num_buckets,
+                  lower=True, tokenize=True,
                   devFileSuffix=None, testFileSuffix=None,
                   ):
     import os
@@ -265,7 +269,8 @@ def _prepareInput(workspaceDir, modelName,
 
     X_train, y_train, X_dev, y_dev, X_test, y_test = _loadData(
                     os.path.join(workspaceDir, "tqe." + modelName),
-                    devFileSuffix, testFileSuffix
+                    devFileSuffix, testFileSuffix,
+                    lower=lower, tokenize=tokenize,
                 )
 
     logger.info("Transforming sentences to onehot")

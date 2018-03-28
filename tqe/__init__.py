@@ -243,8 +243,6 @@ def shefArgparser(parser):
 
     parser.add_argument('--max-len', type=int, default=500,
                         help='Maximum length of the sentences')
-    parser.add_argument('--buckets', type=int, default=4,
-                        help='Number of buckets for padding lenght')
     parser.add_argument('-v', '--vocab-size', type=int, default=40000,
                         help='Maximum vocab size')
     parser.add_argument('-m', '--embedding-size', type=int, default=50,
