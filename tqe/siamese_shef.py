@@ -204,6 +204,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 saveModel,
                 featureFileSuffix, normalize, trainLM, trainNGrams,
                 batchSize, epochs, max_len, num_buckets, vocab_size,
+                early_stop,
                 **kwargs):
     logger.info("initializing TQE training")
 
@@ -249,6 +250,9 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
 
     logger.info("Training model")
 
+    if early_stop < 0:
+        early_stop = epochs
+
     model.fit_generator(getBatchGenerator([
                 X_train['features'],
                 X_train['src'],
@@ -271,7 +275,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             key=lambda x: "_".join(map(str, map(len, x)))
         ),
         callbacks=[
-            EarlyStopping(monitor="val_pearsonr", patience=2, mode="max"),
+            EarlyStopping(monitor="val_pearsonr", patience=early_stop,
+                          mode="max"),
         ],
         verbose=2
     )
@@ -296,7 +301,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             X_dev['src'],
             X_dev['mt']
         ],
-        key=lambda x: "_".join(map(str, map(len, x)))
+        key=lambda x: "_".join(map(str, map(len, x))),
+        batch_size=batchSize
     )
     y_dev = dev_batches.align(y_dev)
     evaluate(
@@ -310,7 +316,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             X_test['src'],
             X_test['mt']
         ],
-        key=lambda x: "_".join(map(str, map(len, x)))
+        key=lambda x: "_".join(map(str, map(len, x))),
+        batch_size=batchSize
     )
     y_test = test_batches.align(y_test)
     evaluate(
@@ -328,6 +335,7 @@ def train(args):
                 saveModel=args.save_model,
                 batchSize=args.batch_size,
                 epochs=args.epochs,
+                early_stop=args.early_stop,
                 ensemble_count=args.ensemble_count,
 
                 mlp_size=args.mlp_size,
