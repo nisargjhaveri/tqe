@@ -13,7 +13,8 @@ from keras.utils.generic_utils import CustomObjectScope
 
 from .common import evaluate
 
-from .common import WordIndexTransformer, _loadData, _preprocessSentences
+from .common import _prepareInput
+from .common import WordIndexTransformer, _preprocessSentences
 from .common import _printModelSummary, TimeDistributedSequential
 from .common import pad_sequences, getBatchGenerator
 from .common import pearsonr
@@ -22,73 +23,6 @@ from .common import get_fastText_embeddings
 
 import logging
 logger = logging.getLogger("rnn")
-
-
-def _prepareInput(workspaceDir, modelName,
-                  srcVocabTransformer, refVocabTransformer,
-                  max_len, num_buckets,
-                  devFileSuffix=None, testFileSuffix=None,
-                  ):
-    logger.info("Loading data")
-
-    X_train, y_train, X_dev, y_dev, X_test, y_test = _loadData(
-                    os.path.join(workspaceDir, "tqe." + modelName),
-                    devFileSuffix, testFileSuffix
-                )
-
-    logger.info("Transforming sentences to onehot")
-
-    srcVocabTransformer \
-        .fit(X_train['src']) \
-        .fit(X_dev['src']) \
-        .fit(X_test['src'])
-
-    srcSentencesTrain = srcVocabTransformer.transform(X_train['src'])
-    srcSentencesDev = srcVocabTransformer.transform(X_dev['src'])
-    srcSentencesTest = srcVocabTransformer.transform(X_test['src'])
-
-    refVocabTransformer.fit(X_train['mt']) \
-                       .fit(X_dev['mt']) \
-                       .fit(X_test['mt']) \
-                       .fit(X_train['ref']) \
-                       .fit(X_dev['ref']) \
-                       .fit(X_test['ref'])
-
-    mtSentencesTrain = refVocabTransformer.transform(X_train['mt'])
-    mtSentencesDev = refVocabTransformer.transform(X_dev['mt'])
-    mtSentencesTest = refVocabTransformer.transform(X_test['mt'])
-    refSentencesTrain = refVocabTransformer.transform(X_train['ref'])
-    refSentencesDev = refVocabTransformer.transform(X_dev['ref'])
-    refSentencesTest = refVocabTransformer.transform(X_test['ref'])
-
-    def getMaxLen(listOfsequences):
-        return max([max(map(len, sequences)) for sequences in listOfsequences
-                    if len(sequences)])
-
-    srcMaxLen = min(getMaxLen([srcSentencesTrain, srcSentencesDev]), max_len)
-    refMaxLen = min(getMaxLen([mtSentencesTrain, mtSentencesDev,
-                               refSentencesTrain, refSentencesDev]), max_len)
-
-    pad_args = {'num_buckets': num_buckets}
-    X_train = {
-        "src": pad_sequences(srcSentencesTrain, maxlen=srcMaxLen, **pad_args),
-        "mt": pad_sequences(mtSentencesTrain, maxlen=refMaxLen, **pad_args),
-        "ref": pad_sequences(refSentencesTrain, maxlen=refMaxLen, **pad_args)
-    }
-
-    X_dev = {
-        "src": pad_sequences(srcSentencesDev, maxlen=srcMaxLen, **pad_args),
-        "mt": pad_sequences(mtSentencesDev, maxlen=refMaxLen, **pad_args),
-        "ref": pad_sequences(refSentencesDev, maxlen=refMaxLen, **pad_args)
-    }
-
-    X_test = {
-        "src": pad_sequences(srcSentencesTest, maxlen=srcMaxLen, **pad_args),
-        "mt": pad_sequences(mtSentencesTest, maxlen=refMaxLen, **pad_args),
-        "ref": pad_sequences(refSentencesTest, maxlen=refMaxLen, **pad_args)
-    }
-
-    return X_train, y_train, X_dev, y_dev, X_test, y_test
 
 
 class AttentionGRUCell(GRUCell):
