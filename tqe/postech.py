@@ -733,9 +733,18 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             callbacks.on_epoch_begin(epoch)
             for batch_index in range(0, steps_per_epoch):
                 # build batch logs
+                # Get size of the batch
+                x, y = train_data[0][batch_index]
+                if isinstance(x, list):
+                    batch_size = x[0].shape[0]
+                elif isinstance(x, dict):
+                    batch_size = list(x.values())[0].shape[0]
+                else:
+                    batch_size = x.shape[0]
+
                 batch_logs = {}
                 batch_logs['batch'] = batch_index
-                batch_logs['size'] = 0
+                batch_logs['size'] = batch_size
                 callbacks.on_batch_begin(batch_index, batch_logs)
 
                 outs = []
