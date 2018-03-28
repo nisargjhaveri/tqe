@@ -577,7 +577,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                     reshapeRef(X_dev["ref"]),
                     y_dev
                 ],
-                key=lambda x: "_".join(map(str, map(len, x)))
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
             ),
             callbacks=[
                 EarlyStopping(monitor="val_quality_pearsonr", patience=2,
@@ -605,6 +606,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                     reshapeRef(X_dev["ref"]),
                 ],
                 key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
             ),
             callbacks=[
                 EarlyStopping(monitor="val_sparse_categorical_accuracy",
@@ -630,6 +632,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                     y_dev
                 ],
                 key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
             ),
             callbacks=[
                 EarlyStopping(monitor="val_pearsonr", patience=2,
@@ -660,7 +663,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             X_dev['src'],
             X_dev['mt']
         ],
-        key=lambda x: "_".join(map(str, map(len, x)))
+        key=lambda x: "_".join(map(str, map(len, x))),
+        batch_size=batchSize,
     )
     y_dev = dev_batches.align(y_dev)
     evaluate(
@@ -673,7 +677,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             X_test['src'],
             X_test['mt']
         ],
-        key=lambda x: "_".join(map(str, map(len, x)))
+        key=lambda x: "_".join(map(str, map(len, x))),
+        batch_size=batchSize,
     )
     y_test = test_batches.align(y_test)
     evaluate(
