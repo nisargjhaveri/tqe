@@ -162,22 +162,29 @@ def _loadData(fileBasename, devFileSuffix=None, testFileSuffix=None,
     return X_train, y_train, X_dev, y_dev, X_test, y_test
 
 
-def pad_sequences(sequences, maxlen, num_buckets=1, **kwargs):
+def pad_sequences(sequences, maxlen=None, num_buckets=1, lengths=None,
+                  **kwargs):
     from keras.preprocessing.sequence import pad_sequences
-    if num_buckets <= 1:
+    if num_buckets <= 1 and not lengths:
         return pad_sequences(sequences, maxlen, **kwargs)
     else:
-        bucket_size = maxlen / num_buckets
+        if not lengths:
+            if not maxlen:
+                maxlen = max(map(len, sequences))
 
-        def get_padlen(s):
-            return min(
+            bucket_size = maxlen / num_buckets
+
+            def get_padlen(s):
+                return min(
                     int(np.ceil(len(s) / float(bucket_size))) * bucket_size,
                     maxlen
-                   )
+                )
+
+            lengths = map(get_padlen, sequences)
 
         return np.array(
-                map(lambda s: pad_sequences([s], get_padlen(s), **kwargs)[0],
-                    sequences)
+                map(lambda s, l: pad_sequences([s], l, **kwargs)[0],
+                    sequences, lengths)
                 )
 
 

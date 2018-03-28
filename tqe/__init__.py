@@ -135,10 +135,12 @@ def postechArgparser(parser):
                         help='Batch size')
     parser.add_argument('-e', '--epochs', type=int, default=25,
                         help='Number of epochs to run')
-    parser.add_argument('--ensemble-count', type=int, default=3,
+    parser.add_argument('--ensemble-count', type=int, default=1,
                         help='Number of models to ensemble')
     parser.add_argument('--max-len', type=int, default=100,
                         help='Maximum length of the sentences')
+    parser.add_argument('--buckets', type=int, default=4,
+                        help='Number of buckets for padding lenght')
     parser.add_argument('-m', '--embedding-size', type=int, default=300,
                         help='Size of word embeddings')
     parser.add_argument('-n', '--gru-size', type=int, default=500,

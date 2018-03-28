@@ -1,6 +1,8 @@
 import os
 import shelve
 
+import numpy as np
+
 from keras.layers import Layer, multiply, concatenate, average
 from keras.layers import Input, Embedding, Dense, Reshape
 from keras.layers import RNN, GRU, GRUCell, Bidirectional
@@ -11,12 +13,12 @@ from keras.callbacks import EarlyStopping
 
 import keras.backend as K
 
-from keras.preprocessing.sequence import pad_sequences
 from keras.utils.generic_utils import CustomObjectScope
 
 from .common import evaluate
 
 from .common import WordIndexTransformer
+from .common import pad_sequences, getBatchGenerator
 from .common import _loadSentences, _loadData, _preprocessSentences
 from .common import _printModelSummary, TimeDistributedSequential
 from .common import pearsonr
@@ -44,7 +46,7 @@ def _loadPredictorData(fileBasename):
 
 def _prepareInput(workspaceDir, modelName,
                   srcVocabTransformer, refVocabTransformer,
-                  max_len,
+                  max_len, num_buckets,
                   devFileSuffix=None, testFileSuffix=None,
                   predictorDataModel=None):
     logger.info("Loading data")
@@ -98,27 +100,31 @@ def _prepareInput(workspaceDir, modelName,
                                refSentencesTrain, refSentencesDev,
                                refPredictorTrain]), max_len)
 
+    pad_args = {'num_buckets': num_buckets}
     X_train = {
-        "src": pad_sequences(srcSentencesTrain, maxlen=srcMaxLen),
-        "mt": pad_sequences(mtSentencesTrain, maxlen=refMaxLen),
-        "ref": pad_sequences(refSentencesTrain, maxlen=refMaxLen)
+        "src": pad_sequences(srcSentencesTrain, maxlen=srcMaxLen, **pad_args),
+        "mt": pad_sequences(mtSentencesTrain, maxlen=refMaxLen, **pad_args),
     }
+    X_train["ref"] = pad_sequences(refSentencesTrain,
+                                   lengths=map(len, X_train["mt"]))
 
     X_dev = {
-        "src": pad_sequences(srcSentencesDev, maxlen=srcMaxLen),
-        "mt": pad_sequences(mtSentencesDev, maxlen=refMaxLen),
-        "ref": pad_sequences(refSentencesDev, maxlen=refMaxLen)
+        "src": pad_sequences(srcSentencesDev, maxlen=srcMaxLen, **pad_args),
+        "mt": pad_sequences(mtSentencesDev, maxlen=refMaxLen, **pad_args),
     }
+    X_dev["ref"] = pad_sequences(refSentencesDev,
+                                 lengths=map(len, X_dev["mt"]))
 
     X_test = {
-        "src": pad_sequences(srcSentencesTest, maxlen=srcMaxLen),
-        "mt": pad_sequences(mtSentencesTest, maxlen=refMaxLen),
-        "ref": pad_sequences(refSentencesTest, maxlen=refMaxLen)
+        "src": pad_sequences(srcSentencesTest, maxlen=srcMaxLen, **pad_args),
+        "mt": pad_sequences(mtSentencesTest, maxlen=refMaxLen, **pad_args),
     }
+    X_test["ref"] = pad_sequences(refSentencesTest,
+                                  lengths=map(len, X_test["mt"]))
 
     pred_train = {
-        "src": pad_sequences(srcPredictorTrain, maxlen=srcMaxLen),
-        "ref": pad_sequences(refPredictorTrain, maxlen=refMaxLen),
+        "src": pad_sequences(srcPredictorTrain, maxlen=srcMaxLen, **pad_args),
+        "ref": pad_sequences(refPredictorTrain, maxlen=refMaxLen, **pad_args),
     } if predictorDataModel else None
 
     return X_train, y_train, X_dev, y_dev, X_test, y_test, pred_train
@@ -483,7 +489,8 @@ def getEnsembledModel(ensemble_count, **kwargs):
 
 def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 saveModel,
-                batchSize, epochs, max_len, vocab_size, training_mode,
+                batchSize, epochs, max_len, num_buckets, vocab_size,
+                training_mode,
                 predictor_model, predictor_data,
                 **kwargs):
     logger.info("initializing TQE training")
@@ -504,6 +511,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                                         srcVocabTransformer,
                                         refVocabTransformer,
                                         max_len=max_len,
+                                        num_buckets=num_buckets,
                                         devFileSuffix=devFileSuffix,
                                         testFileSuffix=testFileSuffix,
                                         predictorDataModel=predictor_data
@@ -521,6 +529,9 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
     logger.info("Training")
     if training_mode not in ["multitask", "two-step"]:
         raise ValueError("Training mode not recognized")
+
+    def reshapeRef(ref):
+        return np.array(map(lambda r: r.reshape((-1, 1)), ref))
 
     if pred_train:
         logger.info("Training predictor on predictor data")
@@ -548,22 +559,25 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
 
     if training_mode == "multitask":
         logger.info("Training multitask model")
-        model_multitask.fit([
-                X_train['src'],
-                X_train['mt']
-            ], [
-                X_train['ref'].reshape((len(X_train['ref']), -1, 1)),
-                y_train
-            ],
-            batch_size=batchSize,
+        model_multitask.fit_generator(getBatchGenerator([
+                    X_train['src'],
+                    X_train['mt']
+                ], [
+                    reshapeRef(X_train["ref"]),
+                    y_train
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
+            ),
             epochs=epochs,
-            validation_data=([
+            validation_data=getBatchGenerator([
                     X_dev['src'],
                     X_dev['mt']
                 ], [
-                    X_dev['ref'].reshape((len(X_dev['ref']), -1, 1)),
+                    reshapeRef(X_dev["ref"]),
                     y_dev
-                ]
+                ],
+                key=lambda x: "_".join(map(str, map(len, x)))
             ),
             callbacks=[
                 EarlyStopping(monitor="val_quality_pearsonr", patience=2,
@@ -574,20 +588,23 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
 
     if training_mode == "two-step":
         logger.info("Training predictor")
-        model_predictor.fit([
-                X_train['src'],
-                X_train['ref']
-            ], [
-                X_train['ref'].reshape((len(X_train['ref']), -1, 1)),
-            ],
-            batch_size=batchSize,
+        model_predictor.fit_generator(getBatchGenerator([
+                    X_train['src'],
+                    X_train['ref']
+                ], [
+                    reshapeRef(X_train["ref"]),
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
+            ),
             epochs=epochs,
-            validation_data=([
+            validation_data=getBatchGenerator([
                     X_dev['src'],
                     X_dev['mt']
                 ], [
-                    X_dev['ref'].reshape((len(X_dev['ref']), -1, 1)),
-                ]
+                    reshapeRef(X_dev["ref"]),
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
             ),
             callbacks=[
                 EarlyStopping(monitor="val_sparse_categorical_accuracy",
@@ -596,20 +613,23 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             verbose=2
         )
         logger.info("Training estimator")
-        model_estimator.fit([
-                X_train['src'],
-                X_train['mt']
-            ], [
-                y_train
-            ],
-            batch_size=batchSize,
+        model_estimator.fit_generator(getBatchGenerator([
+                    X_train['src'],
+                    X_train['mt']
+                ], [
+                    y_train
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
+                batch_size=batchSize,
+            ),
             epochs=epochs,
-            validation_data=([
+            validation_data=getBatchGenerator([
                     X_dev['src'],
                     X_dev['mt']
                 ], [
                     y_dev
-                ]
+                ],
+                key=lambda x: "_".join(map(str, map(len, x))),
             ),
             callbacks=[
                 EarlyStopping(monitor="val_pearsonr", patience=2,
@@ -636,19 +656,33 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         shelf.close()
 
     logger.info("Evaluating on development data of size %d" % len(y_dev))
-    evaluate(model_estimator.predict([
-        X_dev['src'],
-        X_dev['mt']
-    ]).reshape((-1,)), y_dev)
+    dev_batches = getBatchGenerator([
+            X_dev['src'],
+            X_dev['mt']
+        ],
+        key=lambda x: "_".join(map(str, map(len, x)))
+    )
+    y_dev = dev_batches.align(y_dev)
+    evaluate(
+        model_estimator.predict_generator(dev_batches).reshape((-1,)),
+        y_dev
+    )
 
     logger.info("Evaluating on test data of size %d" % len(y_test))
-    evaluate(model_estimator.predict([
-        X_test['src'],
-        X_test['mt']
-    ]).reshape((-1,)), y_test)
+    test_batches = getBatchGenerator([
+            X_test['src'],
+            X_test['mt']
+        ],
+        key=lambda x: "_".join(map(str, map(len, x)))
+    )
+    y_test = test_batches.align(y_test)
+    evaluate(
+        model_estimator.predict_generator(test_batches).reshape((-1,)),
+        y_test
+    )
 
 
-def load_predictor(workspaceDir, saveModel, max_len, **kwargs):
+def load_predictor(workspaceDir, saveModel, max_len, num_buckets, **kwargs):
     shelf = shelve.open(os.path.join(workspaceDir, "model." + saveModel), 'r')
 
     srcVocabTransformer = shelf['params']['srcVocabTransformer']
@@ -677,11 +711,20 @@ def load_predictor(workspaceDir, saveModel, max_len, **kwargs):
         srcMaxLen = min(max(map(len, src)), max_len)
         refMaxLen = min(max(map(len, mt)), max_len)
 
-        src = pad_sequences(src, maxlen=srcMaxLen)
-        mt = pad_sequences(mt, maxlen=refMaxLen)
+        src = pad_sequences(src, maxlen=srcMaxLen, num_buckets=num_buckets)
+        mt = pad_sequences(mt, maxlen=refMaxLen, num_buckets=num_buckets)
 
         logger.info("Predicting")
-        predicted = model_estimator.predict([src, mt]).reshape((-1,))
+        predict_batches = getBatchGenerator(
+            [src, mt],
+            key=lambda x: "_".join(map(str, map(len, x)))
+        )
+
+        predicted = model_estimator.predict_generator(
+                                        predict_batches
+                                    ).reshape((-1,))
+
+        predicted = predict_batches.alignOriginal(predicted)
 
         if y_test is not None:
             logger.info("Evaluating on test data of size %d" % len(y_test))
@@ -710,6 +753,7 @@ def train(args):
                 ensemble_count=args.ensemble_count,
                 vocab_size=args.vocab_size,
                 max_len=args.max_len,
+                num_buckets=args.buckets,
                 embedding_size=args.embedding_size,
                 gru_size=args.gru_size,
                 qualvec_size=args.qualvec_size,
@@ -726,6 +770,7 @@ def getPredictor(args):
                           saveModel=args.save_model,
                           ensemble_count=args.ensemble_count,
                           max_len=args.max_len,
+                          num_buckets=args.buckets,
                           embedding_size=args.embedding_size,
                           gru_size=args.gru_size,
                           qualvec_size=args.qualvec_size,
