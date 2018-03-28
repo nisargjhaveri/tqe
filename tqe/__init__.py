@@ -135,8 +135,12 @@ def postechArgparser(parser):
                         help='Batch size')
     parser.add_argument('-e', '--epochs', type=int, default=25,
                         help='Number of epochs to run')
+    parser.add_argument('--early-stop', type=int, default=2,
+                        help="Patience before early stopping."
+                        "-1 for no early stopping")
     parser.add_argument('--ensemble-count', type=int, default=1,
                         help='Number of models to ensemble')
+
     parser.add_argument('--max-len', type=int, default=100,
                         help='Maximum length of the sentences')
     parser.add_argument('--buckets', type=int, default=4,

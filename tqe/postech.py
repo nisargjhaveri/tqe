@@ -494,7 +494,7 @@ def getEnsembledModel(ensemble_count, **kwargs):
 def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 saveModel,
                 batchSize, epochs, max_len, num_buckets, vocab_size,
-                training_mode,
+                training_mode, early_stop,
                 predictor_model, predictor_data,
                 **kwargs):
     logger.info("initializing TQE training")
@@ -532,6 +532,9 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         model_predictor.load_weights(predictorModelFile)
 
     logger.info("Training")
+
+    if early_stop < 0:
+        early_stop = epochs
 
     def reshapeRef(ref):
         return np.array(map(lambda r: r.reshape((-1, 1)), ref))
@@ -586,8 +589,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 batch_size=batchSize,
             ),
             callbacks=[
-                EarlyStopping(monitor="val_quality_pearsonr", patience=2,
-                              mode="max"),
+                EarlyStopping(monitor="val_quality_pearsonr",
+                              patience=early_stop, mode="max"),
             ],
             verbose=2
         )
@@ -614,7 +617,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             ),
             callbacks=[
                 EarlyStopping(monitor="val_sparse_categorical_accuracy",
-                              patience=2, mode="max"),
+                              patience=early_stop, mode="max"),
             ],
             verbose=2
         )
@@ -639,7 +642,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 batch_size=batchSize,
             ),
             callbacks=[
-                EarlyStopping(monitor="val_pearsonr", patience=2,
+                EarlyStopping(monitor="val_pearsonr", patience=early_stop,
                               mode="max"),
             ],
             verbose=2
@@ -689,7 +692,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             )
         ]
         callbacks = [
-            EarlyStopping(monitor="val_pearsonr", patience=2,
+            EarlyStopping(monitor="val_pearsonr", patience=early_stop,
                           mode="max"),
         ]
         verbose = 2
@@ -903,6 +906,7 @@ def train(args):
                 saveModel=args.save_model,
                 batchSize=args.batch_size,
                 epochs=args.epochs,
+                early_stop=args.early_stop,
                 ensemble_count=args.ensemble_count,
                 vocab_size=args.vocab_size,
                 max_len=args.max_len,
