@@ -96,6 +96,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
              src_fastText, ref_fastText,
              num_features,
              mlp_size,
+             use_siamese,
              model_inputs=None, verbose=False,
              **kwargs
              ):
@@ -104,12 +105,17 @@ def getModel(srcVocabTransformer, refVocabTransformer,
 
     if not model_inputs:
         model_inputs = [
-            Input(shape=(num_features, )),
             Input(shape=(None, )),
             Input(shape=(None, ))
         ]
 
-    features_input, src_input, ref_input = model_inputs
+        if num_features:
+            model_inputs = [Input(shape=(num_features, ))] + model_inputs
+
+    if num_features:
+        features_input, src_input, ref_input = model_inputs
+    else:
+        src_input, ref_input = model_inputs
 
     src_sentence_enc = getSentenceEncoder(vocabTransformer=srcVocabTransformer,
                                           fastText=src_fastText,
@@ -123,24 +129,32 @@ def getModel(srcVocabTransformer, refVocabTransformer,
                                           verbose=verbose,
                                           **kwargs)(ref_input)
 
-    features_enc = getFeaturesEncoder(mlp_size=mlp_size,
-                                      model_inputs=[features_input],
-                                      verbose=verbose,
-                                      )(features_input)
+    encodings = [src_sentence_enc, ref_sentence_enc]
+    if num_features:
+        features_enc = getFeaturesEncoder(mlp_size=mlp_size,
+                                          model_inputs=[features_input],
+                                          verbose=verbose,
+                                          )(features_input)
+        encodings = [features_enc] + encodings
 
-    siamese_quality = dot([src_sentence_enc, ref_sentence_enc],
-                          axes=-1,
-                          normalize=True,
-                          name="siamese_quality")
-
-    hidden = concatenate([features_enc, src_sentence_enc, ref_sentence_enc])
+    hidden = concatenate(encodings)
 
     hidden = Dense(mlp_size, activation="tanh")(hidden)
     hidden = Dense(mlp_size, activation="tanh")(hidden)
 
-    shef_quality = Dense(1, name="shef_quality", activation="sigmoid")(hidden)
+    if use_siamese:
+        shef_quality = Dense(1, name="shef_quality",
+                             activation="sigmoid")(hidden)
 
-    quality = average([siamese_quality, shef_quality], name="quality")
+        siamese_quality = dot([src_sentence_enc, ref_sentence_enc],
+                              axes=-1,
+                              normalize=True,
+                              name="siamese_quality")
+
+        quality = average([siamese_quality, shef_quality], name="quality")
+    else:
+        quality = Dense(1, name="quality",
+                        activation="sigmoid")(hidden)
 
     if verbose:
         logger.info("Compiling model")
@@ -168,11 +182,13 @@ def getEnsembledModel(ensemble_count, num_features, **kwargs):
     if ensemble_count == 1:
         return getModel(verbose=True, **kwargs)
 
-    features_input = Input(shape=(num_features, ))
-    src_input = Input(shape=(None, ))
-    ref_input = Input(shape=(None, ))
+    model_inputs = [
+        Input(shape=(None, )),
+        Input(shape=(None, ))
+    ]
 
-    model_inputs = [features_input, src_input, ref_input]
+    if num_features:
+        model_inputs = [Input(shape=(num_features, ))] + model_inputs
 
     logger.info("Creating models to ensemble")
     verbose = [True] + [False] * (ensemble_count - 1)
@@ -202,6 +218,7 @@ def getEnsembledModel(ensemble_count, num_features, **kwargs):
 
 def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 saveModel,
+                use_features,
                 featureFileSuffix, normalize, trainLM, trainNGrams,
                 batchSize, epochs, max_len, num_buckets, vocab_size,
                 early_stop,
@@ -221,18 +238,26 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                                         devFileSuffix=devFileSuffix,
                                         testFileSuffix=testFileSuffix,
                                         )
-    (standardScaler,
-     (X_train['features'], _, X_dev['features'], _, X_test['features'], _)) = \
-        _loadAndPrepareFeatures(
-            os.path.join(workspaceDir, "tqe." + modelName),
-            devFileSuffix=devFileSuffix, testFileSuffix=testFileSuffix,
-            featureFileSuffix=featureFileSuffix,
-            normalize=normalize,
-            trainLM=trainLM,
-            trainNGrams=trainNGrams,
-        )
 
-    num_features = len(X_train['features'][0])
+    if use_features:
+        (standardScaler,
+         (X_train['features'], _,
+          X_dev['features'], _,
+          X_test['features'], _)) = \
+            _loadAndPrepareFeatures(
+                os.path.join(workspaceDir, "tqe." + modelName),
+                devFileSuffix=devFileSuffix, testFileSuffix=testFileSuffix,
+                featureFileSuffix=featureFileSuffix,
+                normalize=normalize,
+                trainLM=trainLM,
+                trainNGrams=trainNGrams,
+            )
+        num_features = len(X_train['features'][0])
+        inputs = ['features', 'src', 'mt']
+    else:
+        standardScaler = None
+        num_features = 0
+        inputs = ['src', 'mt']
 
     def get_embedding_path(model):
         return os.path.join(workspaceDir,
@@ -253,11 +278,9 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
     if early_stop < 0:
         early_stop = epochs
 
-    model.fit_generator(getBatchGenerator([
-                X_train['features'],
-                X_train['src'],
-                X_train['mt']
-            ], [
+    model.fit_generator(getBatchGenerator(
+            map(lambda input: X_train[input], inputs),
+            [
                 y_train
             ],
             key=lambda x: "_".join(map(str, map(len, x))),
@@ -265,11 +288,9 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         ),
         epochs=epochs,
         shuffle=True,
-        validation_data=getBatchGenerator([
-                X_dev['features'],
-                X_dev['src'],
-                X_dev['mt']
-            ], [
+        validation_data=getBatchGenerator(
+            map(lambda input: X_dev[input], inputs),
+            [
                 y_dev
             ],
             key=lambda x: "_".join(map(str, map(len, x)))
@@ -296,11 +317,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         shelf.close()
 
     logger.info("Evaluating on development data of size %d" % len(y_dev))
-    dev_batches = getBatchGenerator([
-            X_dev['features'],
-            X_dev['src'],
-            X_dev['mt']
-        ],
+    dev_batches = getBatchGenerator(
+        map(lambda input: X_dev[input], inputs),
         key=lambda x: "_".join(map(str, map(len, x))),
         batch_size=batchSize
     )
@@ -311,11 +329,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
     )
 
     logger.info("Evaluating on test data of size %d" % len(y_test))
-    test_batches = getBatchGenerator([
-            X_test['features'],
-            X_test['src'],
-            X_test['mt']
-        ],
+    test_batches = getBatchGenerator(
+        map(lambda input: X_test[input], inputs),
         key=lambda x: "_".join(map(str, map(len, x))),
         batch_size=batchSize
     )
@@ -337,6 +352,9 @@ def train(args):
                 epochs=args.epochs,
                 early_stop=args.early_stop,
                 ensemble_count=args.ensemble_count,
+
+                use_features=args.use_features,
+                use_siamese=args.use_siamese,
 
                 mlp_size=args.mlp_size,
 

@@ -299,6 +299,13 @@ def siameseShefArgparser(parser):
         parser.add_argument('-m', '--embedding-size', type=int, default=300,
                             help='Size of word embeddings')
 
+        parser.add_argument('--no-features', action="store_false",
+                            dest="use_features",
+                            help="Don't use manual features")
+        parser.add_argument('--no-siamese', action="store_false",
+                            dest="use_siamese",
+                            help="Don't use siamese network")
+
         parser.add_argument('-n', '--mlp-size', type=int, default=50,
                             help='Number of hidden units in MLP layers')
 
