@@ -253,6 +253,10 @@ def shefArgparser(parser):
                         help='Maximum vocab size')
     parser.add_argument('-m', '--embedding-size', type=int, default=50,
                         help='Size of word embeddings')
+
+    parser.add_argument('--no-features', action="store_false",
+                        dest="use_features",
+                        help="Don't use manual features")
     parser.add_argument('--filter-sizes', type=int, nargs='*',
                         default=[1, 2, 3, 4],
                         help='Filter sizes')
