@@ -654,7 +654,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         train_data = [
             getBatchGenerator([
                     X_train['src'],
-                    X_train['mt']
+                    X_train['ref']
                 ], [
                     reshapeRef(X_train["ref"]),
                 ],
