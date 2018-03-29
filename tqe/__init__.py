@@ -239,7 +239,7 @@ def siameseArgparser(parser):
 def shefArgparser(parser):
     parser.add_argument('-b', '--batch-size', type=int, default=50,
                         help='Batch size')
-    parser.add_argument('-e', '--epochs', type=int, default=25,
+    parser.add_argument('-e', '--epochs', type=int, default=100,
                         help='Number of epochs to run')
     parser.add_argument('--no-early-stop', action="store_false",
                         dest="early_stop",
