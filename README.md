@@ -85,12 +85,6 @@ $ python tqe.py baseline workspace/ news.gu --tune
 $ python tqe.py postech workspace/ news.gu
 ```
 
-### SHEF/CNN model
-
-```
-$ python tqe.py shef workspace/ news.gu
-```
-
 #### Two-step learning
 ```
 $ python tqe.py postech --two-step workspace/ news.gu
@@ -99,6 +93,12 @@ $ python tqe.py postech --two-step workspace/ news.gu
 #### Learning with stack propagation
 ```
 $ python tqe.py postech --stack-prop workspace/ news.gu
+```
+
+### SHEF/CNN model
+
+```
+$ python tqe.py shef workspace/ news.gu
 ```
 
 ### RNN models
