@@ -388,7 +388,7 @@ def load_predictor(workspaceDir, modelName, saveModel,
             mtSentences = _preprocessSentences(mt,
                                                lower=False, tokenize=False)
 
-            features = _prepareFeatures(
+            features, = _prepareFeatures(
                                 os.path.join(workspaceDir, "tqe." + modelName),
                                 [{"src": srcSentences, "mt": mtSentences}]
                             )

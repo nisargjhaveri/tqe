@@ -74,7 +74,7 @@ data_name             Identifier for prepared files
 
 ### SVR baseline models
 ```
-$ python tqe.py baseline workspace/ news.gu --tune
+$ python tqe.py baseline workspace/ news.gu [--tune] [--normalize]
 ```
 
 ### POSTECH models
@@ -104,11 +104,7 @@ $ python tqe.py shef workspace/ news.gu
 ### RNN models
 
 ```
-$ python tqe.py rnn --with-attention workspace/ news.gu
-```
-or
-```
-$ python tqe.py rnn --with-attention -summary-attention workspace/ news.gu
+$ python tqe.py rnn --with-attention [--summary-attention] workspace/ news.gu
 ```
 
 ### CNN based models
@@ -126,7 +122,7 @@ $ python tqe.py siamese-shef workspace/ news.gu --no-features
 
 ##### With features
 ```
-$ python tqe.py siamese-shef workspace/ news.gu --normalize
+$ python tqe.py siamese-shef workspace/ news.gu [--normalize]
 ```
 
 #### +fastText
