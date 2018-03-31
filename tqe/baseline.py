@@ -167,6 +167,15 @@ def _parseSentences(sentences, parseCacheFile):
     return parses
 
 
+def _getPaths(fileBasename):
+    srcLMPath = fileBasename + ".src.lm.2.arpa"
+    refLMPath = fileBasename + ".ref.lm.2.arpa"
+    ngramPath = fileBasename + ".src.ngrams.pickle"
+    parseCachePath = fileBasename + ".src.parse.cache"
+
+    return srcLMPath, refLMPath, ngramPath, parseCachePath
+
+
 def _computeFeatures(srcSentences, mtSentences,
                      srcLModel, refLModel, highLowNGrams, parseCachePath):
     high1grams, low1grams, \
@@ -203,8 +212,6 @@ def _computeFeatures(srcSentences, mtSentences,
             srcParse.height(),
         ]
 
-        # features.extend(posCounts.transform([srcParse]).todense().tolist()[0])
-
         return features
 
     logger.info("Computing features")
@@ -216,23 +223,9 @@ def _computeFeatures(srcSentences, mtSentences,
                 )
 
 
-def _prepareFeatures(fileBasename, devFileSuffix=None, testFileSuffix=None,
-                     trainLM=True, trainNGrams=True):
-    logger.info("Loading data for computing features")
-
-    srcLMPath = fileBasename + ".src.lm.2.arpa"
-    refLMPath = fileBasename + ".ref.lm.2.arpa"
-    ngramPath = fileBasename + ".src.ngrams.pickle"
-    parseCachePath = fileBasename + ".src.parse.cache"
-
-    X_train, y_train, X_dev, y_dev, X_test, y_test = _loadData(
-                            fileBasename,
-                            devFileSuffix=devFileSuffix,
-                            testFileSuffix=testFileSuffix,
-                            lower=False,
-                            tokenize=False,
-                        )
-
+def _trainFeatureExtraction(fileBasename, X_train,
+                            trainLM=True, trainNGrams=True):
+    srcLMPath, refLMPath, ngramPath, _ = _getPaths(fileBasename)
     if trainLM:
         logger.info("Training language models")
         _trainLM(X_train['src'], srcLMPath, 2)
@@ -242,12 +235,9 @@ def _prepareFeatures(fileBasename, devFileSuffix=None, testFileSuffix=None,
         logger.info("Computing ngram frequencies")
         _fitNGramCounts(X_train['src'], ngramPath)
 
-    # posCounts = CountVectorizer(
-    #     lowercase=False,
-    #     tokenizer=lambda t: map(lambda p: p[1], t.pos()),
-    #     ngram_range=(1, 2)
-    # )
-    # posCounts.fit(srcParses)
+
+def _prepareFeatures(fileBasename, X_splits):
+    srcLMPath, refLMPath, ngramPath, parseCachePath = _getPaths(fileBasename)
 
     logger.info("Loading language models")
     srcLModel = kenlm.Model(srcLMPath)
@@ -262,19 +252,13 @@ def _prepareFeatures(fileBasename, devFileSuffix=None, testFileSuffix=None,
                      high2grams, low2grams,
                      high3grams, low3grams)
 
-    X_train = _computeFeatures(X_train['src'], X_train['mt'],
-                               srcLModel, refLModel, highLowNGrams,
-                               parseCachePath)
+    X_features = []
+    for X in X_splits:
+        X_features.append(_computeFeatures(X['src'], X['mt'],
+                                           srcLModel, refLModel, highLowNGrams,
+                                           parseCachePath))
 
-    X_dev = _computeFeatures(X_dev['src'], X_dev['mt'],
-                             srcLModel, refLModel, highLowNGrams,
-                             parseCachePath)
-
-    X_test = _computeFeatures(X_test['src'], X_test['mt'],
-                              srcLModel, refLModel, highLowNGrams,
-                              parseCachePath)
-
-    return X_train, y_train, X_dev, y_dev, X_test, y_test
+    return X_features
 
 
 def _getFeaturesFromFile(fileBasename, devFileSuffix=None, testFileSuffix=None,
@@ -328,12 +312,23 @@ def _loadAndPrepareFeatures(fileBasename,
                                             featureFileSuffix=featureFileSuffix
                                             )
     else:
-        X_train, y_train, X_dev, y_dev, X_test, y_test = _prepareFeatures(
+        logger.info("Loading data for computing features")
+        X_train, y_train, X_dev, y_dev, X_test, y_test = _loadData(
+                                fileBasename,
+                                devFileSuffix=devFileSuffix,
+                                testFileSuffix=testFileSuffix,
+                                lower=False,
+                                tokenize=False,
+                            )
+
+        _trainFeatureExtraction(
+                    fileBasename,
+                    X_train,
+                    trainLM=trainLM, trainNGrams=trainNGrams)
+
+        X_train, X_dev, X_test = _prepareFeatures(
                                             fileBasename,
-                                            devFileSuffix=devFileSuffix,
-                                            testFileSuffix=testFileSuffix,
-                                            trainLM=trainLM,
-                                            trainNGrams=trainNGrams,
+                                            [X_train, X_dev, X_test]
                                             )
 
     scaler = None

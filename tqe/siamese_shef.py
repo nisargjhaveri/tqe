@@ -18,8 +18,9 @@ from .common import _printModelSummary
 from .common import getBatchGenerator
 from .common import pearsonr
 from .common import get_fastText_embeddings
+from .common import _preprocessSentences, pad_sequences
 
-from .baseline import _loadAndPrepareFeatures
+from .baseline import _loadAndPrepareFeatures, _prepareFeatures
 
 import logging
 logger = logging.getLogger("siamese-shef")
@@ -312,6 +313,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             'srcVocabTransformer': srcVocabTransformer,
             'refVocabTransformer': refVocabTransformer,
             'standardScaler': standardScaler,
+            'num_features': num_features,
         }
 
         shelf.close()
@@ -339,6 +341,80 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         model.predict_generator(test_batches).reshape((-1,)),
         y_test
     )
+
+
+def load_predictor(workspaceDir, modelName, saveModel,
+                   max_len, num_buckets,
+                   use_features,
+                   **kwargs):
+    shelf = shelve.open(os.path.join(workspaceDir, "model." + saveModel), 'r')
+
+    srcVocabTransformer = shelf['params']['srcVocabTransformer']
+    refVocabTransformer = shelf['params']['refVocabTransformer']
+
+    standardScaler = shelf['params']['standardScaler']
+    num_features = shelf['params']['num_features']
+
+    kwargs['src_fastText'] = None
+    kwargs['ref_fastText'] = None
+
+    model = getEnsembledModel(num_features=num_features,
+                              srcVocabTransformer=srcVocabTransformer,
+                              refVocabTransformer=refVocabTransformer,
+                              **kwargs)
+
+    logger.info("Loading weights into model")
+    model.set_weights(shelf['weights'])
+
+    shelf.close()
+
+    def _prepareSentences(sentences, vocavTrannsformer):
+        sentences = _preprocessSentences(sentences)
+        sentences = vocavTrannsformer.transform(sentences)
+        currMaxLen = min(max(map(len, sentences)), max_len)
+
+        return pad_sequences(sentences, maxlen=currMaxLen,
+                             num_buckets=num_buckets)
+
+    def predictor(src, mt, y_test=None):
+        logger.info("Preparing data for prediction")
+
+        inputs = [_prepareSentences(src, srcVocabTransformer),
+                  _prepareSentences(mt, refVocabTransformer)]
+
+        if use_features:
+            srcSentences = _preprocessSentences(src,
+                                                lower=False, tokenize=False)
+            mtSentences = _preprocessSentences(mt,
+                                               lower=False, tokenize=False)
+
+            features = _prepareFeatures(
+                                os.path.join(workspaceDir, "tqe." + modelName),
+                                [{"src": srcSentences, "mt": mtSentences}]
+                            )
+
+            if standardScaler:
+                features = standardScaler.transform(features)
+
+            inputs = [features] + inputs
+
+        logger.info("Predicting")
+        predict_batches = getBatchGenerator(
+            inputs,
+            key=lambda x: "_".join(map(str, map(len, x)))
+        )
+
+        predicted = model.predict_generator(predict_batches).reshape((-1,))
+
+        predicted = predict_batches.alignOriginal(predicted)
+
+        if y_test is not None:
+            logger.info("Evaluating on test data of size %d" % len(y_test))
+            evaluate(predicted, y_test)
+
+        return predicted
+
+    return predictor
 
 
 def train(args):
@@ -374,3 +450,26 @@ def train(args):
                 trainLM=args.train_lm,
                 trainNGrams=args.train_ngrams,
                 )
+
+
+def getPredictor(args):
+    return load_predictor(args.workspace_dir,
+                          args.data_name,
+                          saveModel=args.save_model,
+                          ensemble_count=args.ensemble_count,
+
+                          use_features=args.use_features,
+                          use_siamese=args.use_siamese,
+
+                          mlp_size=args.mlp_size,
+
+                          max_len=args.max_len,
+                          num_buckets=args.buckets,
+                          embedding_size=args.embedding_size,
+                          src_fastText=args.source_embeddings,
+                          ref_fastText=args.target_embeddings,
+                          filter_sizes=args.filter_sizes,
+                          num_filters=args.num_filters,
+                          sentence_vector_size=args.sentence_vector_size,
+                          cnn_dropout=args.cnn_dropout,
+                          )
