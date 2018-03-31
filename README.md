@@ -129,6 +129,6 @@ $ python tqe.py siamese-shef workspace/ news.gu --no-features
 $ python tqe.py siamese-shef workspace/ news.gu --normalize
 ```
 
-#### With fastText
+#### +fastText
 Append `--source-embeddings wiki.en --target-embeddings wiki.gu` to any CNN based model.
 This assumes fastText embeddings models in `wordspace/fastText`.
