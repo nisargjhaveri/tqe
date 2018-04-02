@@ -13,6 +13,7 @@ def loadFile(inFile):
 
 
 def printFile(lines):
+    lines = map(lambda l: l.encode('utf-8'), lines)
     sys.stdout.writelines(lines)
 
 
