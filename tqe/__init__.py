@@ -298,6 +298,9 @@ def siameseShefArgparser(parser):
                             help='fastText model name for target language')
         parser.add_argument('--target-embeddings', type=str, default=None,
                             help='fastText model name for target language')
+        parser.add_argument('--freeze-embeddings', action="store_false",
+                            dest="train_embeddings",
+                            help="Make embedding layers non-trainable")
         parser.add_argument('-v', '--vocab-size', type=int, default=40000,
                             help='Maximum vocab size')
         parser.add_argument('-m', '--embedding-size', type=int, default=300,

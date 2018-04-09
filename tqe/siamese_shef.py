@@ -29,6 +29,7 @@ logger = logging.getLogger("siamese-shef")
 def getSentenceEncoder(vocabTransformer,
                        embedding_size,
                        fastText,
+                       train_embeddings,
                        filter_sizes, num_filters, sentence_vector_size,
                        cnn_dropout,
                        model_inputs, verbose,
@@ -52,6 +53,7 @@ def getSentenceEncoder(vocabTransformer,
                         output_dim=embedding_size,
                         input_dim=vocab_size,
                         name="embedding",
+                        trainable=train_embeddings,
                         **embedding_kwargs)(input)
 
     conv_blocks = []
@@ -440,6 +442,7 @@ def train(args):
                 embedding_size=args.embedding_size,
                 src_fastText=args.source_embeddings,
                 ref_fastText=args.target_embeddings,
+                train_embeddings=args.train_embeddings,
                 filter_sizes=args.filter_sizes,
                 num_filters=args.num_filters,
                 sentence_vector_size=args.sentence_vector_size,
@@ -468,6 +471,7 @@ def getPredictor(args):
                           embedding_size=args.embedding_size,
                           src_fastText=args.source_embeddings,
                           ref_fastText=args.target_embeddings,
+                          train_embeddings=args.train_embeddings,
                           filter_sizes=args.filter_sizes,
                           num_filters=args.num_filters,
                           sentence_vector_size=args.sentence_vector_size,
