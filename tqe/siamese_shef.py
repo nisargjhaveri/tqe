@@ -226,7 +226,7 @@ def _get_embedding_path(workspaceDir, model):
                         ) if model else None
 
 
-def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
+def train_model(workspaceDir, dataName, devFileSuffix, testFileSuffix,
                 pretrain_for,
                 pretrain_devFileSuffix, pretrain_testFileSuffix,
                 pretrained_model,
@@ -248,6 +248,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         train_vocab = False
 
         # Setup feature extraction params
+        pretrainedBasename = os.path.join(workspaceDir,
+                                          "tqe." + shelf['args'].data_name)
         standardScaler = shelf['params']['standardScaler']
 
         # Don't load from fastText again
@@ -264,6 +266,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         train_vocab = True
 
         # Setup feature extraction params
+        pretrainedBasename = None
         standardScaler = None
 
         # Set paths for fastText models
@@ -274,7 +277,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
 
     X_train, y_train, X_dev, y_dev, X_test, y_test = _prepareInput(
                                         workspaceDir,
-                                        modelName,
+                                        dataName,
                                         srcVocabTransformer,
                                         refVocabTransformer,
                                         train_vocab=train_vocab,
@@ -300,8 +303,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
           X_dev['features'], _,
           X_test['features'], _)) = \
             _loadAndPrepareFeatures(
-                os.path.join(workspaceDir, "tqe." + modelName),
-                trainedBasename=pretrained_model,
+                os.path.join(workspaceDir, "tqe." + dataName),
+                trainedBasename=pretrainedBasename,
                 standardScaler=standardScaler,
                 devFileSuffix=devFileSuffix, testFileSuffix=testFileSuffix,
                 featureFileSuffix=featureFileSuffix,
@@ -395,7 +398,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
     )
 
 
-def load_predictor(workspaceDir, modelName, saveModel,
+def load_predictor(workspaceDir, dataName, saveModel,
                    max_len, num_buckets,
                    use_features,
                    **kwargs):
@@ -441,7 +444,7 @@ def load_predictor(workspaceDir, modelName, saveModel,
                                                lower=False, tokenize=False)
 
             features, = _prepareFeatures(
-                                os.path.join(workspaceDir, "tqe." + modelName),
+                                os.path.join(workspaceDir, "tqe." + dataName),
                                 [{"src": srcSentences, "mt": mtSentences}]
                             )
 
