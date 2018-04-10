@@ -482,13 +482,15 @@ def pearsonr(y_true, y_pred):
     return r
 
 
-def getStatefulPearsonr():
+def getStatefulPearsonr(**kwargs):
     from keras.layers import Layer
     import keras.backend as K
 
     class StatefulPearsonr(Layer):
         def __init__(self, **kwargs):
-            super(StatefulPearsonr, self).__init__(**kwargs)
+            super(StatefulPearsonr, self).__init__(name="pearsonr", **kwargs)
+
+            self.stateful = True
 
             self.n = K.variable(value=0, dtype='int')
             self.sum_xy = K.variable(value=0, dtype='float')
@@ -508,13 +510,6 @@ def getStatefulPearsonr():
         def __call__(self, y_true, y_pred):
             x = y_true
             y = y_pred
-            # n = x.shape[0]
-            mx = K.mean(x)
-            my = K.mean(y)
-            xm, ym = x - mx, y - my
-            r_num = K.sum(xm * ym)
-            r_den = K.sqrt(K.sum(xm * xm) * K.sum(ym * ym))
-            r = r_num / r_den
 
             n = self.n + K.shape(x)[0]
             sum_xy = self.sum_xy + K.sum(x * y)
@@ -546,7 +541,7 @@ def getStatefulPearsonr():
             r = K.clip(r, -1.0, 1.0)
             return r
 
-    return StatefulPearsonr()
+    return StatefulPearsonr(**kwargs)
 
 
 def evaluate(y_pred, y_test, output=True):
