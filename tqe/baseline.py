@@ -167,10 +167,12 @@ def _parseSentences(sentences, parseCacheFile):
     return parses
 
 
-def _getPaths(fileBasename):
-    srcLMPath = fileBasename + ".src.lm.2.arpa"
-    refLMPath = fileBasename + ".ref.lm.2.arpa"
-    ngramPath = fileBasename + ".src.ngrams.pickle"
+def _getPaths(fileBasename, trainedBasename=None):
+    trainedBasename = trainedBasename if trainedBasename else fileBasename
+
+    srcLMPath = trainedBasename + ".src.lm.2.arpa"
+    refLMPath = trainedBasename + ".ref.lm.2.arpa"
+    ngramPath = trainedBasename + ".src.ngrams.pickle"
     parseCachePath = fileBasename + ".src.parse.cache"
 
     return srcLMPath, refLMPath, ngramPath, parseCachePath
@@ -236,8 +238,11 @@ def _trainFeatureExtraction(fileBasename, X_train,
         _fitNGramCounts(X_train['src'], ngramPath)
 
 
-def _prepareFeatures(fileBasename, X_splits):
-    srcLMPath, refLMPath, ngramPath, parseCachePath = _getPaths(fileBasename)
+def _prepareFeatures(fileBasename, X_splits, trainedBasename=None):
+    srcLMPath, refLMPath, ngramPath, parseCachePath = _getPaths(
+                    fileBasename,
+                    trainedBasename=trainedBasename
+                )
 
     logger.info("Loading language models")
     srcLModel = kenlm.Model(srcLMPath)
@@ -301,6 +306,7 @@ def _getFeaturesFromFile(fileBasename, devFileSuffix=None, testFileSuffix=None,
 
 
 def _loadAndPrepareFeatures(fileBasename,
+                            trainedBasename=None, standardScaler=None,
                             devFileSuffix=None, testFileSuffix=None,
                             featureFileSuffix=None, normalize=False,
                             trainLM=True, trainNGrams=True):
@@ -321,20 +327,23 @@ def _loadAndPrepareFeatures(fileBasename,
                                 tokenize=False,
                             )
 
-        _trainFeatureExtraction(
-                    fileBasename,
-                    X_train,
-                    trainLM=trainLM, trainNGrams=trainNGrams)
+        if not trainedBasename:
+            _trainFeatureExtraction(
+                        fileBasename,
+                        X_train,
+                        trainLM=trainLM, trainNGrams=trainNGrams)
 
         X_train, X_dev, X_test = _prepareFeatures(
                                             fileBasename,
-                                            [X_train, X_dev, X_test]
+                                            [X_train, X_dev, X_test],
+                                            trainedBasename=trainedBasename,
                                             )
 
-    scaler = None
+    scaler = standardScaler
     if normalize:
-        scaler = StandardScaler()
-        scaler.fit(X_train)
+        if not scaler:
+            scaler = StandardScaler()
+            scaler.fit(X_train)
 
         X_train = scaler.transform(X_train)
         X_dev = scaler.transform(X_dev)

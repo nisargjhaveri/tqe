@@ -12,7 +12,7 @@ from keras.callbacks import EarlyStopping
 
 from .common import evaluate
 
-from .common import _prepareInput
+from .common import _prepareInput, _extendVocabFor
 from .common import WordIndexTransformer
 from .common import _printModelSummary
 from .common import getBatchGenerator
@@ -219,7 +219,17 @@ def getEnsembledModel(ensemble_count, num_features, **kwargs):
     return model
 
 
+def _get_embedding_path(workspaceDir, model):
+    return os.path.join(workspaceDir,
+                        "fastText",
+                        ".".join([model, "bin"])
+                        ) if model else None
+
+
 def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
+                pretrain_for,
+                pretrain_devFileSuffix, pretrain_testFileSuffix,
+                pretrained_model,
                 saveModel,
                 use_features,
                 featureFileSuffix, normalize, trainLM, trainNGrams,
@@ -228,19 +238,61 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 **kwargs):
     logger.info("initializing TQE training")
 
-    srcVocabTransformer = WordIndexTransformer(vocab_size=vocab_size)
-    refVocabTransformer = WordIndexTransformer(vocab_size=vocab_size)
+    if pretrained_model:
+        shelf = shelve.open(os.path.join(workspaceDir,
+                                         "model." + pretrained_model), 'r')
+
+        # Load vocab
+        srcVocabTransformer = shelf['params']['srcVocabTransformer']
+        refVocabTransformer = shelf['params']['refVocabTransformer']
+        train_vocab = False
+
+        # Setup feature extraction params
+        standardScaler = shelf['params']['standardScaler']
+
+        # Don't load from fastText again
+        kwargs['src_fastText'] = None
+        kwargs['ref_fastText'] = None
+
+        model_weights = shelf['weights']
+
+        shelf.close()
+    else:
+        # Setup vocab
+        srcVocabTransformer = WordIndexTransformer(vocab_size=vocab_size)
+        refVocabTransformer = WordIndexTransformer(vocab_size=vocab_size)
+        train_vocab = True
+
+        # Setup feature extraction params
+        standardScaler = None
+
+        # Set paths for fastText models
+        kwargs['src_fastText'] = _get_embedding_path(workspaceDir,
+                                                     kwargs['src_fastText'])
+        kwargs['ref_fastText'] = _get_embedding_path(workspaceDir,
+                                                     kwargs['ref_fastText'])
 
     X_train, y_train, X_dev, y_dev, X_test, y_test = _prepareInput(
                                         workspaceDir,
                                         modelName,
                                         srcVocabTransformer,
                                         refVocabTransformer,
+                                        train_vocab=train_vocab,
                                         max_len=max_len,
                                         num_buckets=num_buckets,
                                         devFileSuffix=devFileSuffix,
                                         testFileSuffix=testFileSuffix,
                                         )
+
+    if pretrain_for:
+        _extendVocabFor(
+                    workspaceDir,
+                    pretrain_for,
+                    srcVocabTransformer,
+                    refVocabTransformer,
+                    devFileSuffix=pretrain_devFileSuffix,
+                    testFileSuffix=pretrain_testFileSuffix,
+        )
 
     if use_features:
         (standardScaler,
@@ -249,12 +301,15 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
           X_test['features'], _)) = \
             _loadAndPrepareFeatures(
                 os.path.join(workspaceDir, "tqe." + modelName),
+                trainedBasename=pretrained_model,
+                standardScaler=standardScaler,
                 devFileSuffix=devFileSuffix, testFileSuffix=testFileSuffix,
                 featureFileSuffix=featureFileSuffix,
                 normalize=normalize,
                 trainLM=trainLM,
                 trainNGrams=trainNGrams,
             )
+
         num_features = len(X_train['features'][0])
         inputs = ['features', 'src', 'mt']
     else:
@@ -262,19 +317,14 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         num_features = 0
         inputs = ['src', 'mt']
 
-    def get_embedding_path(model):
-        return os.path.join(workspaceDir,
-                            "fastText",
-                            ".".join([model, "bin"])
-                            ) if model else None
-
-    kwargs['src_fastText'] = get_embedding_path(kwargs['src_fastText'])
-    kwargs['ref_fastText'] = get_embedding_path(kwargs['ref_fastText'])
-
     model = getEnsembledModel(num_features=num_features,
                               srcVocabTransformer=srcVocabTransformer,
                               refVocabTransformer=refVocabTransformer,
                               **kwargs)
+
+    if pretrained_model:
+        logger.info("Loading weights into model")
+        model.set_weights(model_weights)
 
     logger.info("Training model")
 
@@ -430,6 +480,12 @@ def train(args):
                 epochs=args.epochs,
                 early_stop=args.early_stop,
                 ensemble_count=args.ensemble_count,
+
+                pretrain_for=args.pretrain_for,
+                pretrain_devFileSuffix=args.pretrain_dev_file_suffix,
+                pretrain_testFileSuffix=args.pretrain_test_file_suffix,
+
+                pretrained_model=args.pretrained_model,
 
                 use_features=args.use_features,
                 use_siamese=args.use_siamese,

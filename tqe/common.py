@@ -10,7 +10,7 @@ logger = logging.getLogger("common")
 class WordIndexTransformer(object):
     def __init__(self, vocab_size=None):
         self.nextIndex = 1
-        self.vocabSize = vocab_size
+        self.maxVocabSize = vocab_size
         self.vocabMap = {}
         self.wordCounts = Counter()
 
@@ -30,14 +30,19 @@ class WordIndexTransformer(object):
 
     def finalize(self):
         if self.finalized:
-            return
+            return self
 
         for token, count in self.wordCounts.most_common():
-            if self.vocabSize is None or self.nextIndex <= self.vocabSize:
+            if token in self.vocabMap:
+                continue
+
+            if (self.maxVocabSize is None
+                    or self.nextIndex <= self.maxVocabSize):
                 self.vocabMap[token] = self.nextIndex
                 self.nextIndex += 1
 
         self.finalized = True
+        self.wordCounts = Counter()
 
         return self
 
@@ -51,9 +56,11 @@ class WordIndexTransformer(object):
 
         return np.array(transformedSentences)
 
-    def fit_transform(self, sentences):
-        self.fit(sentences)
-        return self.transform(sentences)
+    def extend(self, vocab_size=None):
+        self.vocabSize = vocab_size
+        self.finalized = False
+
+        return self
 
     def vocab_size(self):
         return self.nextIndex
@@ -257,9 +264,10 @@ def getBatchGenerator(*args, **kwargs):
     return BatchGeneratorSequence(*args, **kwargs)
 
 
-def _prepareInput(workspaceDir, modelName,
+def _prepareInput(workspaceDir, dataName,
                   srcVocabTransformer, refVocabTransformer,
                   max_len, num_buckets,
+                  train_vocab=True,
                   lower=True, tokenize=True,
                   devFileSuffix=None, testFileSuffix=None,
                   ):
@@ -268,28 +276,30 @@ def _prepareInput(workspaceDir, modelName,
     logger.info("Loading data")
 
     X_train, y_train, X_dev, y_dev, X_test, y_test = _loadData(
-                    os.path.join(workspaceDir, "tqe." + modelName),
+                    os.path.join(workspaceDir, "tqe." + dataName),
                     devFileSuffix, testFileSuffix,
                     lower=lower, tokenize=tokenize,
                 )
 
     logger.info("Transforming sentences to onehot")
 
-    srcVocabTransformer \
-        .fit(X_train['src']) \
-        .fit(X_dev['src']) \
-        .fit(X_test['src'])
+    if train_vocab:
+        srcVocabTransformer \
+            .fit(X_train['src']) \
+            .fit(X_dev['src']) \
+            .fit(X_test['src'])
 
     srcSentencesTrain = srcVocabTransformer.transform(X_train['src'])
     srcSentencesDev = srcVocabTransformer.transform(X_dev['src'])
     srcSentencesTest = srcVocabTransformer.transform(X_test['src'])
 
-    refVocabTransformer.fit(X_train['mt']) \
-                       .fit(X_dev['mt']) \
-                       .fit(X_test['mt']) \
-                       .fit(X_train['ref']) \
-                       .fit(X_dev['ref']) \
-                       .fit(X_test['ref'])
+    if train_vocab:
+        refVocabTransformer.fit(X_train['mt']) \
+                           .fit(X_dev['mt']) \
+                           .fit(X_test['mt']) \
+                           .fit(X_train['ref']) \
+                           .fit(X_dev['ref']) \
+                           .fit(X_test['ref'])
 
     mtSentencesTrain = refVocabTransformer.transform(X_train['mt'])
     mtSentencesDev = refVocabTransformer.transform(X_dev['mt'])
@@ -326,6 +336,41 @@ def _prepareInput(workspaceDir, modelName,
     }
 
     return X_train, y_train, X_dev, y_dev, X_test, y_test
+
+
+def _extendVocabFor(workspaceDir, dataName,
+                    srcVocabTransformer, refVocabTransformer,
+                    lower=True, tokenize=True,
+                    devFileSuffix=None, testFileSuffix=None,
+                    ):
+    import os
+
+    logger.info("Loading pretrain_for data")
+
+    X_train, y_train, X_dev, y_dev, X_test, y_test = _loadData(
+                    os.path.join(workspaceDir, "tqe." + dataName),
+                    devFileSuffix, testFileSuffix,
+                    lower=lower, tokenize=tokenize,
+                )
+
+    logger.info("Extending vocab")
+
+    srcVocabTransformer \
+        .extend() \
+        .fit(X_train['src']) \
+        .fit(X_dev['src']) \
+        .fit(X_test['src']) \
+        .finalize()
+
+    refVocabTransformer \
+        .extend() \
+        .fit(X_train['mt']) \
+        .fit(X_dev['mt']) \
+        .fit(X_test['mt']) \
+        .fit(X_train['ref']) \
+        .fit(X_dev['ref']) \
+        .fit(X_test['ref']) \
+        .finalize()
 
 
 fastTextCache = defaultdict(dict)
