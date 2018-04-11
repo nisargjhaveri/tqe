@@ -99,7 +99,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
              src_fastText, ref_fastText,
              num_features,
              mlp_size,
-             use_siamese,
+             use_siamese, use_shef,
              model_inputs=None, verbose=False,
              **kwargs
              ):
@@ -132,32 +132,41 @@ def getModel(srcVocabTransformer, refVocabTransformer,
                                           verbose=verbose,
                                           **kwargs)(ref_input)
 
-    encodings = [src_sentence_enc, ref_sentence_enc]
-    if num_features:
-        features_enc = getFeaturesEncoder(mlp_size=mlp_size,
-                                          model_inputs=[features_input],
-                                          verbose=verbose,
-                                          )(features_input)
-        encodings = [features_enc] + encodings
+    if use_shef:
+        encodings = [src_sentence_enc, ref_sentence_enc]
+        if num_features:
+            features_enc = getFeaturesEncoder(mlp_size=mlp_size,
+                                              model_inputs=[features_input],
+                                              verbose=verbose,
+                                              )(features_input)
+            encodings = [features_enc] + encodings
 
-    hidden = concatenate(encodings)
+        hidden = concatenate(encodings)
 
-    hidden = Dense(mlp_size, activation="tanh")(hidden)
-    hidden = Dense(mlp_size, activation="tanh")(hidden)
+        hidden = Dense(mlp_size, activation="tanh")(hidden)
+        hidden = Dense(mlp_size, activation="tanh")(hidden)
 
-    if use_siamese:
-        shef_quality = Dense(1, name="shef_quality",
-                             activation="sigmoid")(hidden)
-
+    if use_siamese and use_shef:
         siamese_quality = dot([src_sentence_enc, ref_sentence_enc],
                               axes=-1,
                               normalize=True,
                               name="siamese_quality")
 
+        shef_quality = Dense(1, name="shef_quality",
+                             activation="sigmoid")(hidden)
+
         quality = average([siamese_quality, shef_quality], name="quality")
-    else:
+    elif use_siamese:
+        quality = dot([src_sentence_enc, ref_sentence_enc],
+                      axes=-1,
+                      normalize=True,
+                      name="quality")
+    elif use_shef:
         quality = Dense(1, name="quality",
                         activation="sigmoid")(hidden)
+    else:
+        raise ValueError("Please specify atleast one of `Siamese` or `SHEF` "
+                         "model to use.")
 
     if verbose:
         logger.info("Compiling model")
@@ -472,7 +481,18 @@ def load_predictor(workspaceDir, dataName, saveModel,
     return predictor
 
 
+def validateArgs(args):
+    if not args.use_shef and not args.use_siamese:
+        raise ValueError("Cannot disable both Siamese and SHEF networks")
+
+    if not args.use_shef:
+        args.use_features = False
+
+    return args
+
+
 def train(args):
+    args = validateArgs(args)
     train_model(args.workspace_dir,
                 args.data_name,
                 devFileSuffix=args.dev_file_suffix,
@@ -492,6 +512,7 @@ def train(args):
 
                 use_features=args.use_features,
                 use_siamese=args.use_siamese,
+                use_shef=args.use_shef,
 
                 mlp_size=args.mlp_size,
 
@@ -515,6 +536,7 @@ def train(args):
 
 
 def getPredictor(args):
+    args = validateArgs(args)
     return load_predictor(args.workspace_dir,
                           args.data_name,
                           saveModel=args.save_model,
@@ -522,6 +544,7 @@ def getPredictor(args):
 
                           use_features=args.use_features,
                           use_siamese=args.use_siamese,
+                          use_shef=args.use_shef,
 
                           mlp_size=args.mlp_size,
 

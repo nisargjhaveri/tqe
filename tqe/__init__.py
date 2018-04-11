@@ -325,6 +325,9 @@ def siameseShefArgparser(parser):
         parser.add_argument('--no-siamese', action="store_false",
                             dest="use_siamese",
                             help="Don't use siamese network")
+        parser.add_argument('--no-shef', action="store_false",
+                            dest="use_shef",
+                            help="Don't use SHEF network")
 
         parser.add_argument('-n', '--mlp-size', type=int, default=50,
                             help='Number of hidden units in MLP layers')
