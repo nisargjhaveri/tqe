@@ -60,18 +60,21 @@ def getSentenceEncoder(vocabTransformer,
     for filter_size in filter_sizes:
         conv = Conv1D(
                     filters=num_filters,
-                    kernel_size=filter_size
+                    kernel_size=filter_size,
+                    name="conv_" + str(filter_size),
                 )(embedding)
-        conv = GlobalMaxPooling1D()(conv)
+        conv = GlobalMaxPooling1D(
+                    name="global_maxpool_" + str(filter_size)
+                )(conv)
         conv_blocks.append(conv)
 
-    z = concatenate(conv_blocks) \
+    z = concatenate(conv_blocks, name="concat") \
         if len(conv_blocks) > 1 else conv_blocks[0]
 
     if cnn_dropout > 0:
-        z = Dropout(cnn_dropout)(z)
+        z = Dropout(cnn_dropout, name="cnn_dropout")(z)
 
-    encoder = Dense(sentence_vector_size)(z)
+    encoder = Dense(sentence_vector_size, name="sentence_enc")(z)
 
     sentence_encoder = Model(inputs=input, outputs=encoder)
 
@@ -108,12 +111,14 @@ def getModel(srcVocabTransformer, refVocabTransformer,
 
     if not model_inputs:
         model_inputs = [
-            Input(shape=(None, )),
-            Input(shape=(None, ))
+            Input(shape=(None, ), name="input_src"),
+            Input(shape=(None, ), name="input_mt")
         ]
 
         if num_features:
-            model_inputs = [Input(shape=(num_features, ))] + model_inputs
+            model_inputs = [
+                Input(shape=(num_features, ), name="input_features")
+            ] + model_inputs
 
     if num_features:
         features_input, src_input, ref_input = model_inputs
@@ -195,12 +200,14 @@ def getEnsembledModel(ensemble_count, num_features, **kwargs):
         return getModel(verbose=True, **kwargs)
 
     model_inputs = [
-        Input(shape=(None, )),
-        Input(shape=(None, ))
+        Input(shape=(None, ), name="input_src"),
+        Input(shape=(None, ), name="input_mt")
     ]
 
     if num_features:
-        model_inputs = [Input(shape=(num_features, ))] + model_inputs
+        model_inputs = [
+            Input(shape=(num_features, ), name="input_features")
+        ] + model_inputs
 
     logger.info("Creating models to ensemble")
     verbose = [True] + [False] * (ensemble_count - 1)
