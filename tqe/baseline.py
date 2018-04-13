@@ -406,14 +406,18 @@ def _printResult(results, printHeader=False):
         )
 
 
-def train_model(workspaceDir, modelName, tune=False, maxJobs=-1,
+def train_model(workspaceDir, dataName, pretrainedModel,
+                tune=False, maxJobs=-1,
                 **kwargs):
     logger.info("initializing TQE training")
-    fileBasename = os.path.join(workspaceDir, "tqe." + modelName)
+    fileBasename = os.path.join(workspaceDir, "tqe." + dataName)
+    trainedBasename = (os.path.join(workspaceDir, "tqe." + pretrainedModel)
+                       if pretrainedModel else None)
 
     standardScaler, (X_train, y_train, X_dev, y_dev, X_test, y_test) = \
         _loadAndPrepareFeatures(
             fileBasename,
+            trainedBasename=trainedBasename,
             **kwargs
         )
 
@@ -463,6 +467,7 @@ def train_model(workspaceDir, modelName, tune=False, maxJobs=-1,
 def train(args):
     train_model(args.workspace_dir,
                 args.data_name,
+                pretrainedModel=args.pretrained_model,
                 devFileSuffix=args.dev_file_suffix,
                 testFileSuffix=args.test_file_suffix,
                 featureFileSuffix=args.feature_file_suffix,

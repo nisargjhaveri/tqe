@@ -124,6 +124,9 @@ def getPredictor(modelPath):
 def baselineArgparser(parser):
     parser.add_argument('--feature-file-suffix', type=str, default=None,
                         help='Suffix for feature files')
+
+    parser.add_argument('--pretrained-model', type=str, default=None,
+                        help='Pre-trained model to use for feature extraction')
     parser.add_argument('--train-lm', action='store_true',
                         help='Train language model.')
     parser.add_argument('--train-ngrams', action='store_true',
