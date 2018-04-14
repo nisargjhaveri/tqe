@@ -17,7 +17,7 @@ from .common import _prepareInput
 from .common import WordIndexTransformer, _preprocessSentences
 from .common import _printModelSummary, TimeDistributedSequential
 from .common import pad_sequences, getBatchGenerator
-from .common import pearsonr
+from .common import getStatefulPearsonr
 from .common import get_fastText_embeddings
 
 
@@ -199,7 +199,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
                 "quality": "mse"
             },
             metrics={
-                "quality": ["mse", "mae", pearsonr]
+                "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
     if verbose:
@@ -235,7 +235,7 @@ def getEnsembledModel(ensemble_count, **kwargs):
                 "quality": "mse"
             },
             metrics={
-                "quality": ["mse", "mae", pearsonr]
+                "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
     _printModelSummary(logger, model, "ensembled_model")

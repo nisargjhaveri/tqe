@@ -14,7 +14,7 @@ from .common import _prepareInput
 from .common import WordIndexTransformer
 from .common import _printModelSummary
 from .common import getBatchGenerator
-from .common import pearsonr
+from .common import getStatefulPearsonr
 
 from .baseline import _loadAndPrepareFeatures
 
@@ -124,7 +124,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
                 "quality": "mse"
             },
             metrics={
-                "quality": ["mse", "mae", pearsonr]
+                "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
     if verbose:
@@ -169,7 +169,7 @@ def getEnsembledModel(ensemble_count,
                 "quality": "mse"
             },
             metrics={
-                "quality": ["mse", "mae", pearsonr]
+                "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
     _printModelSummary(logger, model, "ensembled_model")

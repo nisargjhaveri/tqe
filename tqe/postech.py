@@ -23,7 +23,7 @@ from .common import WordIndexTransformer
 from .common import pad_sequences, getBatchGenerator
 from .common import _loadSentences, _loadData, _preprocessSentences
 from .common import _printModelSummary, TimeDistributedSequential
-from .common import pearsonr
+from .common import getStatefulPearsonr
 
 
 import logging
@@ -371,7 +371,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
             },
             metrics={
                 "predicted_word": ["sparse_categorical_accuracy"],
-                "quality": ["mse", "mae", pearsonr]
+                "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
     if verbose:
@@ -409,7 +409,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
                 "quality": "mse"
             },
             metrics={
-                "quality": ["mse", "mae", pearsonr]
+                "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
     if verbose:
@@ -460,7 +460,7 @@ def getEnsembledModel(ensemble_count, **kwargs):
             },
             metrics={
                 "predicted_word": ["sparse_categorical_accuracy"],
-                "quality": ["mse", "mae", pearsonr]
+                "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
 
@@ -484,7 +484,7 @@ def getEnsembledModel(ensemble_count, **kwargs):
                 "quality": "mse"
             },
             metrics={
-                "quality": ["mse", "mae", pearsonr]
+                "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
 
