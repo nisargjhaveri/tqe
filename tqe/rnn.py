@@ -70,7 +70,7 @@ class AttentionGRUCell(GRUCell):
 
 def getModel(srcVocabTransformer, refVocabTransformer,
              embedding_size, gru_size,
-             src_fastText, ref_fastText,
+             src_fastText, ref_fastText, train_embeddings,
              attention, summary_attention, use_estimator,
              model_inputs=None, verbose=False,
              ):
@@ -110,6 +110,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
                         input_dim=src_vocab_size,
                         mask_zero=True,
                         name="src_embedding",
+                        trainable=train_embeddings,
                         **src_embedding_kwargs)(src_input)
 
     ref_embedding = Embedding(
@@ -117,6 +118,7 @@ def getModel(srcVocabTransformer, refVocabTransformer,
                         input_dim=ref_vocab_size,
                         mask_zero=True,
                         name="ref_embedding",
+                        trainable=train_embeddings,
                         **ref_embedding_kwargs)(ref_input)
 
     encoder = Bidirectional(
@@ -426,6 +428,7 @@ def train(args):
                 gru_size=args.gru_size,
                 src_fastText=args.source_embeddings,
                 ref_fastText=args.target_embeddings,
+                train_embeddings=args.train_embeddings,
                 attention=args.with_attention,
                 summary_attention=args.summary_attention,
                 use_estimator=(not args.no_estimator),
@@ -442,6 +445,7 @@ def getPredictor(args):
                           gru_size=args.gru_size,
                           src_fastText=args.source_embeddings,
                           ref_fastText=args.target_embeddings,
+                          train_embeddings=args.train_embeddings,
                           attention=args.with_attention,
                           summary_attention=args.summary_attention,
                           use_estimator=(not args.no_estimator),
