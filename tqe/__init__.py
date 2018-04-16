@@ -25,6 +25,8 @@ def setupSubparsers(parser):
                                 help="Basepath of saved model")
     predict_parser.add_argument('data_name',
                                 help='Identifier for prepared files')
+    predict_parser.add_argument('--data-file-suffix', type=str, default=None,
+                                help='Suffix for data file')
     predict_parser.add_argument('--evaluate', action='store_true',
                                 help="Evaluate along with prediction.")
     predict_parser.add_argument('--print-results', action='store_true',
@@ -68,11 +70,15 @@ def run(args):
     if (args.model == 'predict'):
         import numpy as np
 
+        filenameSuffix = ""
+        if args.data_file_suffix:
+            filenameSuffix = "." + args.data_file_suffix
+
         fileBasename = os.path.join(args.workspace_dir,
                                     "tqe." + args.data_name)
 
-        srcSentencesPath = fileBasename + ".src"
-        mtSentencesPath = fileBasename + ".mt"
+        srcSentencesPath = fileBasename + ".src" + filenameSuffix
+        mtSentencesPath = fileBasename + ".mt" + filenameSuffix
 
         with open(srcSentencesPath) as lines:
             src = map(lambda l: l.decode('utf-8'), list(lines))
@@ -81,7 +87,7 @@ def run(args):
 
         y = None
         if args.evaluate:
-            targetPath = fileBasename + ".hter"
+            targetPath = fileBasename + ".hter" + filenameSuffix
             y = np.clip(np.loadtxt(targetPath), 0, 1)
 
         modelPath = os.path.join(args.workspace_dir, args.model_name)
