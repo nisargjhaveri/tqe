@@ -18,7 +18,7 @@ from .common import _printModelSummary
 from .common import getBatchGenerator
 from .common import getStatefulPearsonr
 from .common import get_fastText_embeddings
-from .common import _preprocessSentences, pad_sequences
+from .common import _preprocessSentences, pad_sequences, _get_embedding_path
 
 from .baseline import _loadAndPrepareFeatures, _prepareFeatures
 
@@ -233,13 +233,6 @@ def getEnsembledModel(ensemble_count, num_features, **kwargs):
     _printModelSummary(logger, model, "ensembled_model")
 
     return model
-
-
-def _get_embedding_path(workspaceDir, model):
-    return os.path.join(workspaceDir,
-                        "fastText",
-                        ".".join([model, "bin"])
-                        ) if model else None
 
 
 def train_model(workspaceDir, dataName, devFileSuffix, testFileSuffix,
