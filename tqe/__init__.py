@@ -72,7 +72,7 @@ def run(args):
 
         filenameSuffix = ""
         if args.data_file_suffix:
-            filenameSuffix = "." + args.data_file_suffix
+            filenameSuffix = args.data_file_suffix
 
         fileBasename = os.path.join(args.workspace_dir,
                                     "tqe." + args.data_name)
