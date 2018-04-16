@@ -373,6 +373,14 @@ def _extendVocabFor(workspaceDir, dataName,
         .finalize()
 
 
+def _get_embedding_path(workspaceDir, model):
+    import os
+    return os.path.join(workspaceDir,
+                        "fastText",
+                        ".".join([model, "bin"])
+                        ) if model else None
+
+
 fastTextCache = defaultdict(dict)
 
 

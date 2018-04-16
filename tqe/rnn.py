@@ -13,12 +13,12 @@ from keras.utils.generic_utils import CustomObjectScope
 
 from .common import evaluate
 
-from .common import _prepareInput
+from .common import _prepareInput, _extendVocabFor
 from .common import WordIndexTransformer, _preprocessSentences
 from .common import _printModelSummary, TimeDistributedSequential
 from .common import pad_sequences, getBatchGenerator
 from .common import getStatefulPearsonr
-from .common import get_fastText_embeddings
+from .common import get_fastText_embeddings, _get_embedding_path
 
 
 import logging
@@ -246,60 +246,73 @@ def getEnsembledModel(ensemble_count, **kwargs):
 
 
 def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
+                pretrain_for,
+                pretrain_devFileSuffix, pretrain_testFileSuffix,
+                pretrained_model,
                 saveModel,
                 batchSize, epochs, max_len, num_buckets, vocab_size,
                 **kwargs):
     logger.info("initializing TQE training")
 
-    srcVocabTransformer = WordIndexTransformer(vocab_size=vocab_size)
-    refVocabTransformer = WordIndexTransformer(vocab_size=vocab_size)
+    if pretrained_model:
+        shelf = shelve.open(os.path.join(workspaceDir,
+                                         "model." + pretrained_model), 'r')
+
+        # Load vocab
+        srcVocabTransformer = shelf['params']['srcVocabTransformer']
+        refVocabTransformer = shelf['params']['refVocabTransformer']
+        train_vocab = False
+
+        # Don't load from fastText again
+        kwargs['src_fastText'] = None
+        kwargs['ref_fastText'] = None
+
+        model_weights = shelf['weights']
+
+        shelf.close()
+    else:
+        # Setup vocab
+        srcVocabTransformer = WordIndexTransformer(vocab_size=vocab_size)
+        refVocabTransformer = WordIndexTransformer(vocab_size=vocab_size)
+        train_vocab = True
+
+        # Set paths for fastText models
+        kwargs['src_fastText'] = _get_embedding_path(workspaceDir,
+                                                     kwargs['src_fastText'])
+        kwargs['ref_fastText'] = _get_embedding_path(workspaceDir,
+                                                     kwargs['ref_fastText'])
 
     X_train, y_train, X_dev, y_dev, X_test, y_test = _prepareInput(
                                         workspaceDir,
                                         modelName,
                                         srcVocabTransformer,
                                         refVocabTransformer,
+                                        train_vocab=train_vocab,
                                         max_len=max_len,
                                         num_buckets=num_buckets,
                                         devFileSuffix=devFileSuffix,
                                         testFileSuffix=testFileSuffix,
                                         )
 
-    def get_embedding_path(model):
-        return os.path.join(workspaceDir,
-                            "fastText",
-                            ".".join([model, "bin"])
-                            ) if model else None
-
-    kwargs['src_fastText'] = get_embedding_path(kwargs['src_fastText'])
-    kwargs['ref_fastText'] = get_embedding_path(kwargs['ref_fastText'])
+    if pretrain_for:
+        _extendVocabFor(
+                    workspaceDir,
+                    pretrain_for,
+                    srcVocabTransformer,
+                    refVocabTransformer,
+                    devFileSuffix=pretrain_devFileSuffix,
+                    testFileSuffix=pretrain_testFileSuffix,
+        )
 
     model = getEnsembledModel(srcVocabTransformer=srcVocabTransformer,
                               refVocabTransformer=refVocabTransformer,
                               **kwargs)
 
-    logger.info("Training model")
-    # model.fit([
-    #         X_train['src'],
-    #         X_train['mt']
-    #     ], [
-    #         y_train
-    #     ],
-    #     batch_size=batchSize,
-    #     epochs=epochs,
-    #     validation_data=([
-    #             X_dev['src'],
-    #             X_dev['mt']
-    #         ], [
-    #             y_dev
-    #         ]
-    #     ),
-    #     callbacks=[
-    #         EarlyStopping(monitor="val_pearsonr", patience=2, mode="max"),
-    #     ],
-    #     verbose=2
-    # )
+    if pretrained_model:
+        logger.info("Loading weights into model")
+        model.set_weights(model_weights)
 
+    logger.info("Training model")
     model.fit_generator(getBatchGenerator([
                 X_train['src'],
                 X_train['mt']
@@ -421,6 +434,13 @@ def train(args):
                 batchSize=args.batch_size,
                 epochs=args.epochs,
                 ensemble_count=args.ensemble_count,
+
+                pretrain_for=args.pretrain_for,
+                pretrain_devFileSuffix=args.pretrain_dev_file_suffix,
+                pretrain_testFileSuffix=args.pretrain_test_file_suffix,
+
+                pretrained_model=args.pretrained_model,
+
                 vocab_size=args.vocab_size,
                 max_len=args.max_len,
                 num_buckets=args.buckets,

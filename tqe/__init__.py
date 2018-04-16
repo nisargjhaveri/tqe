@@ -180,6 +180,17 @@ def postechArgparser(parser):
 
 
 def rnnArgparser(parser):
+    parser.add_argument('--pretrain-for', type=str, default=None,
+                        help='Pre-train for data specified')
+    parser.add_argument('--pretrain-dev-file-suffix', type=str, default=None,
+                        help='Suffix for dev files')
+    parser.add_argument('--pretrain-test-file-suffix', type=str, default=None,
+                        help='Suffix for test files')
+
+    parser.add_argument('--pretrained-model', type=str, default=None,
+                        help='Pre-trained model to load and continue '
+                        'training.')
+
     parser.add_argument('-b', '--batch-size', type=int, default=50,
                         help='Batch size')
     parser.add_argument('-e', '--epochs', type=int, default=25,
