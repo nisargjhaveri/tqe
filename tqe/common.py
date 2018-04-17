@@ -373,6 +373,20 @@ def _extendVocabFor(workspaceDir, dataName,
         .finalize()
 
 
+def getBinaryThreshold(binary_threshold, y_train):
+    if binary_threshold is None:
+        binary_threshold = np.mean(y_train)
+
+    return binary_threshold
+
+
+def binarize(threshold, *args):
+    return map(
+                lambda x: np.where(x >= threshold, 1, 0),
+                args
+            )
+
+
 def _get_embedding_path(workspaceDir, model):
     import os
     return os.path.join(workspaceDir,
@@ -552,15 +566,48 @@ def getStatefulPearsonr(**kwargs):
     return StatefulPearsonr(**kwargs)
 
 
-def evaluate(y_pred, y_test, output=True):
+def _binaryClassificationEvaluate(y_pred, y_true, output=True):
+    from sklearn.metrics import mean_squared_error, mean_absolute_error
+    from sklearn.metrics import precision_recall_fscore_support
+
+    y_pred_bin, = binarize(0.5, y_pred)
+
+    mse = mean_squared_error(y_true, y_pred)
+    mae = mean_absolute_error(y_true, y_pred)
+
+    precision, recall, f1, _ = \
+        precision_recall_fscore_support(y_true, y_pred_bin, average='binary')
+
+    if output:
+        print "\t".join([
+            "MSE", "MAE", "Prec.", "Recall", "F1-score"
+        ])
+        print "\t".join([
+            ("%1.5f" % mse),
+            ("%1.5f" % mae),
+            ("%1.5f" % precision),
+            ("%1.5f" % recall),
+            ("%1.5f" % f1),
+        ])
+
+    return {
+        "MSE": mse,
+        "MAE": mae,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+    }
+
+
+def _regressionEvaluate(y_pred, y_true, output=True):
     from sklearn.metrics import mean_squared_error, mean_absolute_error
     from scipy.stats import pearsonr
     from scipy.stats import spearmanr
 
-    mse = mean_squared_error(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
-    pearsonR = pearsonr(y_pred, y_test)
-    spearmanR = spearmanr(y_pred, y_test)
+    mse = mean_squared_error(y_true, y_pred)
+    mae = mean_absolute_error(y_true, y_pred)
+    pearsonR = pearsonr(y_pred, y_true)
+    spearmanR = spearmanr(y_pred, y_true)
 
     if output:
         print "\t".join([
@@ -581,3 +628,10 @@ def evaluate(y_pred, y_test, output=True):
         "pearsonR": pearsonR,
         "spearmanR": spearmanR
     }
+
+
+def evaluate(y_pred, y_true, binary=False, **kwargs):
+    if binary:
+        return _binaryClassificationEvaluate(y_pred, y_true, **kwargs)
+    else:
+        return _regressionEvaluate(y_pred, y_true, **kwargs)

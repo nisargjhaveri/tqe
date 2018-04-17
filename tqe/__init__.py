@@ -303,6 +303,11 @@ def shefArgparser(parser):
 
 
 def siameseShefArgparser(parser):
+    parser.add_argument('--binary', action='store_true',
+                        help='Train for binary classification.')
+    parser.add_argument('--binary-threshold', type=float, default=None,
+                        help='Threshold for binary classification.')
+
     parser.add_argument('--pretrain-for', type=str, default=None,
                         help='Pre-train for data specified')
     parser.add_argument('--pretrain-dev-file-suffix', type=str, default=None,
