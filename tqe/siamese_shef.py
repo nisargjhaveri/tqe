@@ -173,27 +173,16 @@ def getModel(srcVocabTransformer, refVocabTransformer,
         raise ValueError("Please specify atleast one of `Siamese` or `SHEF` "
                          "model to use.")
 
-    if verbose:
-        logger.info("Compiling model")
     model = Model(inputs=model_inputs,
                   outputs=[quality])
 
-    model.compile(
-            optimizer="adadelta",
-            loss={
-                "quality": "mse"
-            },
-            metrics={
-                "quality": ["mse", "mae", getStatefulPearsonr()]
-            }
-        )
     if verbose:
         _printModelSummary(logger, model, "model")
 
     return model
 
 
-def getEnsembledModel(ensemble_count, num_features, **kwargs):
+def _getEnsembledModel(ensemble_count, num_features, **kwargs):
     kwargs['num_features'] = num_features
 
     if ensemble_count == 1:
@@ -217,10 +206,18 @@ def getEnsembledModel(ensemble_count, num_features, **kwargs):
     output = average([model(model_inputs) for model in models],
                      name='quality')
 
-    logger.info("Compiling ensembled model")
     model = Model(inputs=model_inputs,
                   outputs=output)
 
+    _printModelSummary(logger, model, "ensembled_model")
+
+    return model
+
+
+def getEnsembledModel(**kwargs):
+    model = _getEnsembledModel(**kwargs)
+
+    logger.info("Compiling model")
     model.compile(
             optimizer="adadelta",
             loss={
@@ -230,7 +227,6 @@ def getEnsembledModel(ensemble_count, num_features, **kwargs):
                 "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
-    _printModelSummary(logger, model, "ensembled_model")
 
     return model
 
