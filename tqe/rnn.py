@@ -191,26 +191,16 @@ def getModel(srcVocabTransformer, refVocabTransformer,
 
     quality = Dense(1, name="quality")(quality_summary)
 
-    if verbose:
-        logger.info("Compiling model")
     model = Model(inputs=[src_input, ref_input],
                   outputs=[quality])
-    model.compile(
-            optimizer="adadelta",
-            loss={
-                "quality": "mse"
-            },
-            metrics={
-                "quality": ["mse", "mae", getStatefulPearsonr()]
-            }
-        )
+
     if verbose:
         _printModelSummary(logger, model, "model")
 
     return model
 
 
-def getEnsembledModel(ensemble_count, **kwargs):
+def _getEnsembledModel(ensemble_count, **kwargs):
     if ensemble_count == 1:
         return getModel(verbose=True, **kwargs)
 
@@ -227,10 +217,18 @@ def getEnsembledModel(ensemble_count, **kwargs):
     output = average([model([src_input, ref_input]) for model in models],
                      name='quality')
 
-    logger.info("Compiling ensembled model")
     model = Model(inputs=[src_input, ref_input],
                   outputs=output)
 
+    _printModelSummary(logger, model, "ensembled_model")
+
+    return model
+
+
+def getEnsembledModel(**kwargs):
+    model = _getEnsembledModel(**kwargs)
+
+    logger.info("Compiling model")
     model.compile(
             optimizer="adadelta",
             loss={
@@ -240,7 +238,6 @@ def getEnsembledModel(ensemble_count, **kwargs):
                 "quality": ["mse", "mae", getStatefulPearsonr()]
             }
         )
-    _printModelSummary(logger, model, "ensembled_model")
 
     return model
 
