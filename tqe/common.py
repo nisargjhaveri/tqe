@@ -611,9 +611,11 @@ def _binaryClassificationEvaluate(y_pred, y_true, output=True):
     precision, recall, f1, support = \
         precision_recall_fscore_support(y_true, y_pred_bin)
 
+    predicted = np.sum(y_pred_bin)
+
     if output:
         print "\t".join([
-            "MSE", "MAE", "Prec.", "Recall", "F1", "Support"
+            "MSE", "MAE", "Prec.", "Recall", "F1", "True", "Predicted",
         ])
         print "\t".join([
             ("%1.5f" % mse),
@@ -622,6 +624,7 @@ def _binaryClassificationEvaluate(y_pred, y_true, output=True):
             ("%1.5f" % recall[1]),
             ("%1.5f" % f1[1]),
             ("%d" % support[1]),
+            ("%d" % predicted),
         ])
 
     return {
