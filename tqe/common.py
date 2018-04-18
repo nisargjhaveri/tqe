@@ -608,19 +608,20 @@ def _binaryClassificationEvaluate(y_pred, y_true, output=True):
     mse = mean_squared_error(y_true, y_pred)
     mae = mean_absolute_error(y_true, y_pred)
 
-    precision, recall, f1, _ = \
-        precision_recall_fscore_support(y_true, y_pred_bin, average='binary')
+    precision, recall, f1, support = \
+        precision_recall_fscore_support(y_true, y_pred_bin)
 
     if output:
         print "\t".join([
-            "MSE", "MAE", "Prec.", "Recall", "F1-score"
+            "MSE", "MAE", "Prec.", "Recall", "F1", "Support"
         ])
         print "\t".join([
             ("%1.5f" % mse),
             ("%1.5f" % mae),
-            ("%1.5f" % precision),
-            ("%1.5f" % recall),
-            ("%1.5f" % f1),
+            ("%1.5f" % precision[1]),
+            ("%1.5f" % recall[1]),
+            ("%1.5f" % f1[1]),
+            ("%1.5f" % support[1]),
         ])
 
     return {
