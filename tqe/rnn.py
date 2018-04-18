@@ -17,8 +17,9 @@ from .common import _prepareInput, _extendVocabFor
 from .common import WordIndexTransformer, _preprocessSentences
 from .common import _printModelSummary, TimeDistributedSequential
 from .common import pad_sequences, getBatchGenerator
-from .common import getStatefulPearsonr
+from .common import getStatefulPearsonr, getStatefulAccuracy
 from .common import get_fastText_embeddings, _get_embedding_path
+from .common import getBinaryThreshold, binarize
 
 
 import logging
@@ -225,17 +226,24 @@ def _getEnsembledModel(ensemble_count, **kwargs):
     return model
 
 
-def getEnsembledModel(**kwargs):
+def getEnsembledModel(binary, **kwargs):
     model = _getEnsembledModel(**kwargs)
 
     logger.info("Compiling model")
+    if binary:
+        loss = "binary_crossentropy"
+        metrics = ["mae", getStatefulAccuracy()]
+    else:
+        loss = "mse"
+        metrics = ["mse", "mae", getStatefulPearsonr()]
+
     model.compile(
             optimizer="adadelta",
             loss={
-                "quality": "mse"
+                "quality": loss
             },
             metrics={
-                "quality": ["mse", "mae", getStatefulPearsonr()]
+                "quality": metrics
             }
         )
 
@@ -247,6 +255,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 pretrain_devFileSuffix, pretrain_testFileSuffix,
                 pretrained_model,
                 saveModel,
+                binary, binary_threshold,
                 batchSize, epochs, max_len, num_buckets, vocab_size,
                 **kwargs):
     logger.info("initializing TQE training")
@@ -291,6 +300,11 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                                         testFileSuffix=testFileSuffix,
                                         )
 
+    if binary:
+        binary_threshold = getBinaryThreshold(binary_threshold, y_train)
+        y_train, y_dev, y_test = binarize(binary_threshold,
+                                          y_train, y_dev, y_test)
+
     if pretrain_for:
         _extendVocabFor(
                     workspaceDir,
@@ -301,7 +315,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                     testFileSuffix=pretrain_testFileSuffix,
         )
 
-    model = getEnsembledModel(srcVocabTransformer=srcVocabTransformer,
+    model = getEnsembledModel(binary=binary,
+                              srcVocabTransformer=srcVocabTransformer,
                               refVocabTransformer=refVocabTransformer,
                               **kwargs)
 
@@ -310,6 +325,8 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         model.set_weights(model_weights)
 
     logger.info("Training model")
+    early_stop_monitor = ("val_acc" if binary else "val_pearsonr")
+
     model.fit_generator(getBatchGenerator([
                 X_train['src'],
                 X_train['mt']
@@ -330,7 +347,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             key=lambda x: "_".join(map(str, map(len, x)))
         ),
         callbacks=[
-            EarlyStopping(monitor="val_pearsonr", patience=2, mode="max"),
+            EarlyStopping(monitor=early_stop_monitor, patience=2, mode="max"),
         ],
         verbose=2
     )
@@ -344,6 +361,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         shelf['params'] = {
             'srcVocabTransformer': srcVocabTransformer,
             'refVocabTransformer': refVocabTransformer,
+            'binary_threshold': binary_threshold,
         }
 
         shelf.close()
@@ -356,8 +374,11 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         key=lambda x: "_".join(map(str, map(len, x)))
     )
     y_dev = dev_batches.align(y_dev)
-    evaluate(model.predict_generator(dev_batches).reshape((-1,)),
-             y_dev)
+    evaluate(
+        model.predict_generator(dev_batches).reshape((-1,)),
+        y_dev,
+        binary=binary,
+    )
 
     logger.info("Evaluating on test data of size %d" % len(y_test))
     test_batches = getBatchGenerator([
@@ -367,20 +388,29 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         key=lambda x: "_".join(map(str, map(len, x)))
     )
     y_test = test_batches.align(y_test)
-    evaluate(model.predict_generator(test_batches).reshape((-1,)),
-             y_test)
+    evaluate(
+        model.predict_generator(test_batches).reshape((-1,)),
+        y_test,
+        binary=binary,
+    )
 
 
-def load_predictor(workspaceDir, saveModel, max_len, num_buckets, **kwargs):
+def load_predictor(workspaceDir, saveModel,
+                   max_len, num_buckets,
+                   binary, binary_threshold,
+                   **kwargs):
     shelf = shelve.open(os.path.join(workspaceDir, "model." + saveModel), 'r')
 
     srcVocabTransformer = shelf['params']['srcVocabTransformer']
     refVocabTransformer = shelf['params']['refVocabTransformer']
 
+    binary_threshold = shelf['params']['binary_threshold']
+
     kwargs['src_fastText'] = None
     kwargs['ref_fastText'] = None
 
-    model = getEnsembledModel(srcVocabTransformer=srcVocabTransformer,
+    model = getEnsembledModel(binary=binary,
+                              srcVocabTransformer=srcVocabTransformer,
                               refVocabTransformer=refVocabTransformer,
                               **kwargs)
 
@@ -415,7 +445,10 @@ def load_predictor(workspaceDir, saveModel, max_len, num_buckets, **kwargs):
 
         if y_test is not None:
             logger.info("Evaluating on test data of size %d" % len(y_test))
-            evaluate(predicted, y_test)
+            if binary:
+                y_test, = binarize(binary_threshold, y_test)
+
+            evaluate(predicted, y_test, binary=binary)
 
         return predicted
 
@@ -442,6 +475,10 @@ def train(args):
                 max_len=args.max_len,
                 num_buckets=args.buckets,
                 embedding_size=args.embedding_size,
+
+                binary=args.binary,
+                binary_threshold=args.binary_threshold,
+
                 gru_size=args.gru_size,
                 src_fastText=args.source_embeddings,
                 ref_fastText=args.target_embeddings,
@@ -459,6 +496,10 @@ def getPredictor(args):
                           max_len=args.max_len,
                           num_buckets=args.buckets,
                           embedding_size=args.embedding_size,
+
+                          binary=args.binary,
+                          binary_threshold=args.binary_threshold,
+
                           gru_size=args.gru_size,
                           src_fastText=args.source_embeddings,
                           ref_fastText=args.target_embeddings,

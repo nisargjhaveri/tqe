@@ -207,6 +207,12 @@ def rnnArgparser(parser):
                         help='Maximum length of the sentences')
     parser.add_argument('--buckets', type=int, default=4,
                         help='Number of buckets for padding lenght')
+
+    parser.add_argument('--binary', action='store_true',
+                        help='Train for binary classification.')
+    parser.add_argument('--binary-threshold', type=float, default=None,
+                        help='Threshold for binary classification.')
+
     parser.add_argument('--source-embeddings', type=str, default=None,
                         help='fastText model name for target language')
     parser.add_argument('--target-embeddings', type=str, default=None,
@@ -303,11 +309,6 @@ def shefArgparser(parser):
 
 
 def siameseShefArgparser(parser):
-    parser.add_argument('--binary', action='store_true',
-                        help='Train for binary classification.')
-    parser.add_argument('--binary-threshold', type=float, default=None,
-                        help='Threshold for binary classification.')
-
     parser.add_argument('--pretrain-for', type=str, default=None,
                         help='Pre-train for data specified')
     parser.add_argument('--pretrain-dev-file-suffix', type=str, default=None,
@@ -344,6 +345,11 @@ def siameseShefArgparser(parser):
                         help='Maximum vocab size')
     parser.add_argument('-m', '--embedding-size', type=int, default=300,
                         help='Size of word embeddings')
+
+    parser.add_argument('--binary', action='store_true',
+                        help='Train for binary classification.')
+    parser.add_argument('--binary-threshold', type=float, default=None,
+                        help='Threshold for binary classification.')
 
     parser.add_argument('--no-features', action="store_false",
                         dest="use_features",
