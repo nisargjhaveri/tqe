@@ -576,8 +576,8 @@ def getStatefulAccuracy(**kwargs):
 
             self.stateful = True
 
-            self.correct = K.variable(value=0, dtype='int')
-            self.total = K.variable(value=0, dtype='int')
+            self.correct = K.variable(value=0, dtype='float')
+            self.total = K.variable(value=0, dtype='float')
 
         def reset_states(self):
             K.set_value(self.correct, 0)
