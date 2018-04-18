@@ -16,7 +16,7 @@ from .common import _prepareInput, _extendVocabFor
 from .common import WordIndexTransformer
 from .common import _printModelSummary
 from .common import getBatchGenerator
-from .common import getStatefulPearsonr
+from .common import getStatefulPearsonr, getStatefulAccuracy
 from .common import get_fastText_embeddings
 from .common import _preprocessSentences, pad_sequences, _get_embedding_path
 from .common import getBinaryThreshold, binarize
@@ -221,7 +221,7 @@ def getEnsembledModel(binary, **kwargs):
     logger.info("Compiling model")
     if binary:
         loss = "binary_crossentropy"
-        metrics = ["mae", "accuracy"]
+        metrics = ["mae", getStatefulAccuracy()]
     else:
         loss = "mse"
         metrics = ["mse", "mae", getStatefulPearsonr()]

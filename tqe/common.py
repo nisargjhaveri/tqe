@@ -566,6 +566,39 @@ def getStatefulPearsonr(**kwargs):
     return StatefulPearsonr(**kwargs)
 
 
+def getStatefulAccuracy(**kwargs):
+    from keras.layers import Layer
+    import keras.backend as K
+
+    class StatefulAccuracy(Layer):
+        def __init__(self, **kwargs):
+            super(StatefulAccuracy, self).__init__(name="acc", **kwargs)
+
+            self.stateful = True
+
+            self.correct = K.variable(value=0, dtype='int')
+            self.total = K.variable(value=0, dtype='int')
+
+        def reset_states(self):
+            K.set_value(self.correct, 0)
+            K.set_value(self.total, 0)
+
+        def __call__(self, y_true, y_pred):
+            total = self.total + K.shape(y_true)[0]
+            correct = self.correct + K.sum(K.equal(y_true, K.round(y_pred)))
+
+            self.add_update(K.update_add(self.total,
+                            K.shape(y_true)[0]),
+                            inputs=[y_true, y_pred])
+            self.add_update(K.update_add(self.correct,
+                            K.sum(K.equal(y_true, K.round(y_pred)))),
+                            inputs=[y_true, y_pred])
+
+            return correct / total
+
+    return StatefulAccuracy(**kwargs)
+
+
 def _binaryClassificationEvaluate(y_pred, y_true, output=True):
     from sklearn.metrics import mean_squared_error, mean_absolute_error
     from sklearn.metrics import precision_recall_fscore_support
