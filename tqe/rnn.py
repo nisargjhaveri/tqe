@@ -257,6 +257,7 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
                 saveModel,
                 binary, binary_threshold,
                 batchSize, epochs, max_len, num_buckets, vocab_size,
+                early_stop,
                 **kwargs):
     logger.info("initializing TQE training")
 
@@ -325,6 +326,9 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
         model.set_weights(model_weights)
 
     logger.info("Training model")
+
+    if early_stop < 0:
+        early_stop = epochs
     early_stop_monitor = ("val_acc" if binary else "val_pearsonr")
 
     model.fit_generator(getBatchGenerator([
@@ -347,7 +351,9 @@ def train_model(workspaceDir, modelName, devFileSuffix, testFileSuffix,
             key=lambda x: "_".join(map(str, map(len, x)))
         ),
         callbacks=[
-            EarlyStopping(monitor=early_stop_monitor, patience=2, mode="max"),
+            EarlyStopping(monitor=early_stop_monitor,
+                          patience=early_stop,
+                          mode="max"),
         ],
         verbose=2
     )
@@ -463,6 +469,7 @@ def train(args):
                 saveModel=args.save_model,
                 batchSize=args.batch_size,
                 epochs=args.epochs,
+                early_stop=args.early_stop,
                 ensemble_count=args.ensemble_count,
 
                 pretrain_for=args.pretrain_for,
