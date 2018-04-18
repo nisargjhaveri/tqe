@@ -621,7 +621,7 @@ def _binaryClassificationEvaluate(y_pred, y_true, output=True):
             ("%1.5f" % precision[1]),
             ("%1.5f" % recall[1]),
             ("%1.5f" % f1[1]),
-            ("%1.5f" % support[1]),
+            ("%d" % support[1]),
         ])
 
     return {
