@@ -1,2 +1,5 @@
 *.pyc
 workspace
+build
+dist
+*.egg-info
