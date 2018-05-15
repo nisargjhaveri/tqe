@@ -18,18 +18,18 @@ $ pip install --upgrade --process-dependency-link https://github.com/nisargjhave
 
 ### Other dependencies
 
-#### Setup Stanford CoreNLP [Optional] (used in baseline feature extraction)
+#### Stanford CoreNLP [Optional] (used in baseline feature extraction)
 https://stanfordnlp.github.io/CoreNLP/index.html#download
 
 Get and setup Stanford CoreNLP.
 Set `CORENLP_HOST` with the address to the CoreNLP server.
 
-#### Setup KenLM [Optional] (used in baseline feature extraction)
+#### KenLM [Optional] (used in baseline feature extraction)
 https://github.com/kpu/kenlm
 
 Setup KenLM and set an environment variable `KENLM_BIN` with the path to directory containing `lmplz` binary.
 
-#### Setup tercom [Optional] (used in data preparation)
+#### tercom [Optional] (used in data preparation)
 http://www.cs.umd.edu/~snover/tercom/
 
 Setup TERCOM and set environment variable `TERCOM_JAR` with the path to `tercom.7.25.jar`.
