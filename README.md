@@ -1,5 +1,19 @@
 # Translation Quality Estimation
 
+This was published as part of the following paper. Cite this paper if you use this code or datasets.
+
+Nisarg Jhaveri, Manish Gupta, and Vasudeva Varma. 2018. Translation Quality Estimation for Indian Languages. In *Proceedings of the 21st Annual Conference of the European Association for Machine Translation (EAMT)*.
+
+```
+@inproceedings{jhaveri2018qe,
+  title = {Translation Quality Estimation for Indian Languages},
+  author = {Nisarg Jhaveri and Manish Gupta and Vasudeva Varma},
+  booktitle = {Proceedings of the 21st Annual Conference of the European Association for Machine Translation (EAMT)},
+  year = {2018},
+  isbn = {978-84-09-01901-4},
+}
+```
+
 ## Setup
 
 ### Python dependencies
@@ -42,11 +56,12 @@ The WMT17 en-de dataset can be downloaded from the official website of the share
 http://www.statmt.org/wmt17/quality-estimation-task.html
 
 ### news.gu
-This dataset can be obtained by contacting the authors.
+This dataset can be obtained from https://github.com/nisargjhaveri/tqe-datasets.
+
 
 ### ICLI datasets
 The parallel corpus can be obtained from http://tdil-dc.in.
-The automatic translations and quality labels can be obtained by contacting the authors.
+The automatic translations and quality labels can be obtained from https://github.com/nisargjhaveri/tqe-datasets.
 
 ## Run
 
